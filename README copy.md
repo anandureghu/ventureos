@@ -22,7 +22,7 @@ Built with **Next.js (App Router) + Supabase + Tailwind**. Auth is **Google sign
 Next.js (App Router, RSC)  ──>  Supabase Postgres (RLS on every table)
         │                              │
         ├─ @supabase/ssr (cookies)     ├─ Auth (Google OAuth)
-        └─ proxy (session + gate)       └─ Storage bucket "vault"
+        └─ middleware (session + gate) └─ Storage bucket "vault"
 ```
 
 Data model: `profiles`, `organizations`, `organization_members`, `ventures`, `tasks`, `transactions`, `notes`, `documents`. See `supabase/migrations/`.
@@ -32,7 +32,7 @@ Data model: `profiles`, `organizations`, `organization_members`, `ventures`, `ta
 ## Setup
 
 ### 1. Prerequisites
-- Node.js 20+ (required by Next.js 16)
+- Node.js 18.18+ (or 20+)
 - A free [Supabase](https://supabase.com) project
 - A Google Cloud project for OAuth
 
@@ -96,4 +96,3 @@ This is a solid, runnable foundation that maps directly to the VentureOS vision.
 - The "AI Co-Founder" layer — call an LLM with a venture's stage, tasks, and finances to suggest the next action.
 
 If you later sell this as SaaS, the multi-tenant org model and RLS are already the right shape for it.
-# ventureos

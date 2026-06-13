@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-ink text-fg font-sans antialiased;
+    background-image:
+      radial-gradient(60rem 40rem at 110% -10%, rgba(124, 92, 255, 0.08), transparent),
+      radial-gradient(50rem 30rem at -10% 0%, rgba(63, 182, 139, 0.06), transparent);
+    background-attachment: fixed;
+  }
+  * {
+    border-color: theme("colors.ink.500");
+  }
+  :focus-visible {
+    outline: 2px solid theme("colors.signal.violet");
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-ink-500 bg-ink-700;
+  }
+  .panel-raised {
+    @apply rounded-xl border border-ink-500 bg-ink-600;
+  }
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.18em] text-fg-faint;
+  }
+  .stat-num {
+    @apply font-mono tabular-nums tracking-tight;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-signal-violet text-white hover:bg-[#6a4cf0];
+  }
+  .btn-ghost {
+    @apply btn border border-ink-500 bg-transparent text-fg hover:bg-ink-600;
+  }
+  .field {
+    @apply w-full rounded-lg border border-ink-500 bg-ink-800 px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-signal-violet focus:outline-none;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-ink-500 px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-fg-muted;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* slim scrollbars for the kanban */
+.scroll-x::-webkit-scrollbar { height: 8px; }
+.scroll-x::-webkit-scrollbar-thumb { background: theme("colors.ink.500"); border-radius: 8px; }
