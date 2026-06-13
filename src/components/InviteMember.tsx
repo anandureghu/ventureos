@@ -34,7 +34,7 @@ export default function InviteMember({ orgId }: { orgId: string }) {
 
   return (
     <div className="panel p-5">
-      <p className="eyebrow mb-3">Add a co-founder</p>
+      <p className="eyebrow mb-3">Invite to this workspace</p>
       <div className="flex flex-wrap gap-2">
         <input
           className="field flex-1 min-w-[220px]"
@@ -65,7 +65,9 @@ export default function InviteMember({ orgId }: { orgId: string }) {
         </p>
       )}
       <p className="mt-2 text-xs text-fg-faint">
-        They must sign in with Google once first so VentureOS knows their account.
+        They must sign in with Google once first. After joining, they can switch to
+        this workspace from the sidebar — they only see ventures in workspaces they
+        belong to.
       </p>
     </div>
   );

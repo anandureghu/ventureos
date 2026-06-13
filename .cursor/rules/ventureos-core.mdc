@@ -1,0 +1,38 @@
+---
+description: VentureOS project context, stack, and global conventions
+alwaysApply: true
+---
+
+# VentureOS Core
+
+Portfolio OS for founders: ventures, kanban, financials, knowledge, calculators — multi-tenant via Supabase workspaces.
+
+## Stack
+
+- Next.js 16 App Router (RSC + client components)
+- Supabase (Postgres + RLS + Google OAuth via `@supabase/ssr`)
+- Tailwind CSS (dark theme: `ink-*`, `signal-*`, `fg-*`)
+
+## Key paths
+
+| Area | Location |
+|------|----------|
+| App routes | `src/app/(app)/` |
+| Session / data | `src/lib/data.ts` → `getSession()` |
+| Types | `src/lib/types.ts` (hand-written) |
+| Supabase clients | `src/lib/supabase/server.ts`, `client.ts` |
+| Auth gate | `proxy.ts` → `src/lib/supabase/middleware.ts` |
+| Migrations | `supabase/migrations/` (numbered, run in order) |
+
+## Conventions
+
+- **Minimize scope** — smallest correct diff; match existing patterns.
+- **No secrets in git** — use `.env.local`; never commit keys.
+- **Workspace-scoped data** — always filter by `session.org.id`; never leak cross-org rows in UI even if RLS allows.
+- **Server pages** that fetch live data: `export const dynamic = "force-dynamic"`.
+- **Commits/PRs** — only when the user explicitly asks.
+- **Supabase** — schema via migrations + `npm run supabase:db:push`; auth/Google via `config.toml` + `npm run supabase:config:push` (see `supabase-master` rule).
+
+## Terminology
+
+Use **workspace** in UI; **organization** (`organizations` table) in DB/SQL.

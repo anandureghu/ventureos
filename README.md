@@ -42,35 +42,45 @@ npm install
 cp .env.example .env.local
 ```
 
-### 3. Run the migrations
-You have two options.
+### 3. Configure Supabase from the repo
 
-**A) Supabase CLI (recommended)**
 ```bash
-npm i -g supabase
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push          # applies everything in supabase/migrations
+cp .env.example .env.local
+# Fill Supabase URL/anon key, project ref, Google OAuth client ID + secret
+
+supabase login
+npm run supabase:setup    # db push + config push (auth, Google provider)
 ```
 
-**B) SQL editor**
-Open the Supabase dashboard → SQL Editor, and run the files in order:
-`0001_foundation.sql`, `0002_ventures.sql`, `0003_rls.sql`.
+See **`supabase/README.md`** for full details. Migrations live in `supabase/migrations/` (0001–0005).
 
-### 4. Configure Google sign-in
+**One-time in Google Cloud Console** — OAuth Web client → Authorized redirect URI:
+```
+https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback
+```
+
+Google client ID/secret go in `.env.local`; they are pushed to Supabase via `config.toml` — no dashboard provider setup needed.
+
+### 4. Configure Google sign-in (credentials only)
+
 1. **Google Cloud Console** → APIs & Services → Credentials → *Create OAuth client ID* → Web application.
-   - Authorized redirect URI:
-     `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
-2. **Supabase dashboard** → Authentication → Providers → **Google** → paste the Client ID and Client Secret, enable it.
-3. **Supabase dashboard** → Authentication → URL Configuration:
-   - Site URL: `http://localhost:3000` (and your production URL later)
-   - Redirect URLs: add `http://localhost:3000/auth/callback`
+   - Authorized redirect URI: `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
+2. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`.
+3. Run `npm run supabase:config:push` (or `npm run supabase:setup`).
+
+App redirect (`http://localhost:3000/auth/callback`) is configured in `supabase/config.toml`, not Google Cloud.
 
 ### 5. Fill in `.env.local`
-From Supabase → Settings → API:
+
+Copy from `.env.example` — minimum required:
+
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR-ANON-KEY
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+SUPABASE_PROJECT_REF=YOUR-PROJECT-REF
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
 ```
 
 ### 6. Run

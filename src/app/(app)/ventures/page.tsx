@@ -19,9 +19,10 @@ export default async function VenturesPage() {
   const { data } = await supabase
     .from("ventures")
     .select("*")
-    .eq("org_id", org.id)
-    .order("created_at", { ascending: false });
-  const ventures = (data ?? []) as Venture[];
+    .eq("org_id", org.id);
+  const ventures = [...((data ?? []) as Venture[])].sort(
+    (a, b) => priorityScore(b) - priorityScore(a) || b.created_at.localeCompare(a.created_at)
+  );
 
   return (
     <div>

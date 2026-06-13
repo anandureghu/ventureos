@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link --project-ref ${SUPABASE_PROJECT_REF}",
+    "supabase:db:push": "supabase db push",
+    "supabase:config:push": "supabase config push",
+    "supabase:migration:list": "supabase migration list",
+    "supabase:setup": "bash scripts/supabase-setup.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

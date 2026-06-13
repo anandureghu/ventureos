@@ -1,48 +1,59 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ACTIVE_ORG_COOKIE } from "@/lib/workspace";
 import type { OrgMember, Organization, Profile } from "@/lib/types";
+
+export interface MyOrg {
+  org: Organization;
+  role: OrgMember["role"];
+}
 
 export interface Session {
   userId: string;
   profile: Profile;
   org: Organization;
   role: OrgMember["role"];
+  orgs: MyOrg[];
 }
 
-async function loadMembership(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) return { user: null, membership: null, org: null };
-
-  const { data: membership, error: membershipError } = await supabase
+async function getMyOrganizations(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<MyOrg[]> {
+  const { data, error } = await supabase
     .from("organization_members")
-    .select("role, org_id")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .select("role, organizations(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
 
-  if (membershipError) {
-    console.error("[getSession] membership query:", membershipError.message);
+  if (error) {
+    console.error("[getMyOrganizations]", error.message);
+    return [];
   }
 
-  if (!membership) {
-    return { user, membership: null, org: null };
+  return (data ?? [])
+    .map((row) => {
+      const orgData = row.organizations as Organization | Organization[] | null;
+      const org = Array.isArray(orgData) ? orgData[0] : orgData;
+      if (!org) return null;
+      return { org, role: row.role as OrgMember["role"] };
+    })
+    .filter((item): item is MyOrg => item !== null);
+}
+
+async function resolveActiveOrg(
+  orgs: MyOrg[],
+  preferredOrgId?: string | null
+): Promise<MyOrg | null> {
+  if (orgs.length === 0) return null;
+
+  if (preferredOrgId) {
+    const match = orgs.find((item) => item.org.id === preferredOrgId);
+    if (match) return match;
   }
 
-  const { data: org, error: orgError } = await supabase
-    .from("organizations")
-    .select("*")
-    .eq("id", membership.org_id)
-    .maybeSingle();
-
-  if (orgError) {
-    console.error("[getSession] org query:", orgError.message);
-  }
-
-  return { user, membership, org: org ?? null };
+  return orgs[0];
 }
 
 /**
@@ -52,11 +63,15 @@ async function loadMembership(supabase: Awaited<ReturnType<typeof createClient>>
  */
 export async function getSession(): Promise<Session> {
   const supabase = await createClient();
-  let { user, membership, org } = await loadMembership(supabase);
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
 
-  if (!membership || !org) {
+  let orgs = await getMyOrganizations(supabase, user.id);
+
+  if (orgs.length === 0) {
     const { error: bootstrapError } = await supabase.rpc(
       "bootstrap_my_workspace"
     );
@@ -66,10 +81,16 @@ export async function getSession(): Promise<Session> {
       redirect("/login?error=setup");
     }
 
-    ({ membership, org } = await loadMembership(supabase));
+    orgs = await getMyOrganizations(supabase, user.id);
   }
 
-  if (!membership || !org) redirect("/login?error=setup");
+  if (orgs.length === 0) redirect("/login?error=setup");
+
+  const cookieStore = await cookies();
+  const preferredOrgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value ?? null;
+  const active = await resolveActiveOrg(orgs, preferredOrgId);
+
+  if (!active) redirect("/login?error=setup");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -85,8 +106,9 @@ export async function getSession(): Promise<Session> {
       full_name: user.email?.split("@")[0] ?? null,
       avatar_url: null
     }) as Profile,
-    org: org as Organization,
-    role: membership.role as OrgMember["role"]
+    org: active.org,
+    role: active.role,
+    orgs
   };
 }
 

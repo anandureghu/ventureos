@@ -1,0 +1,2 @@
+-- VentureOS seed (optional). Migrations + handle_new_user trigger bootstrap real data.
+-- Add dev fixtures here if needed; `supabase db reset` loads this after migrations.

@@ -1,0 +1,40 @@
+---
+description: Supabase migrations, RLS, and RPC conventions
+globs: supabase/**/*.sql
+alwaysApply: false
+---
+
+# Supabase SQL
+
+## Migrations
+
+- Files: `supabase/migrations/NNNN_description.sql` — sequential, never edit applied migrations.
+- Header comment block per file; one concern per migration.
+- Apply via `supabase db push` or SQL editor in order.
+
+## Security model
+
+- **RLS enabled** on every table. Policies use `is_org_member`, `has_org_role`, `can_access_venture`.
+- **SECURITY DEFINER** helpers live in `0001_foundation.sql`; reuse them — avoid recursive policy subqueries.
+- New tables with venture data: add `venture_id` FK + policy via `can_access_venture`.
+- New org-scoped tables: add `org_id` FK + `is_org_member(org_id)` policies.
+
+## RPCs (existing)
+
+| Function | Purpose |
+|----------|---------|
+| `add_member_by_email` | Invite existing user to org (owner/admin only) |
+| `create_workspace` | New org + owner membership for caller |
+| `bootstrap_my_workspace` | Self-heal missing workspace on first load |
+
+New privileged operations → RPC with `security definer` + role checks, not client-side inserts.
+
+## Grants
+
+```sql
+grant execute on function public.my_function(...) to authenticated;
+```
+
+## After schema changes
+
+Update `src/lib/types.ts` if new columns/tables affect the app. No generated Supabase types in this repo yet.

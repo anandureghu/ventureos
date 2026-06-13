@@ -6,12 +6,13 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { profile, org } = await getSession();
+  const { profile, org, orgs } = await getSession();
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
-        orgName={org.name}
+        orgs={orgs}
+        activeOrgId={org.id}
         userName={profile.full_name ?? profile.email ?? "You"}
         avatarUrl={profile.avatar_url}
       />

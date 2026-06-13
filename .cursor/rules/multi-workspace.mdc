@@ -1,0 +1,32 @@
+---
+description: Multi-workspace (organization) architecture and extension rules
+globs: "{src/lib/data.ts,src/lib/workspace.ts,src/components/WorkspaceSwitcher.tsx,src/components/Sidebar.tsx,src/app/api/workspace/**,src/components/InviteMember.tsx}"
+alwaysApply: false
+---
+
+# Multi-Workspace
+
+## Model
+
+- `organizations` = workspace; `organization_members` = membership + role (`owner` | `admin` | `member`).
+- Users belong to **many** orgs; app shows **one active** org at a time.
+- Ventures, members, invites are **org-scoped** — not global.
+
+## Active workspace
+
+- Cookie: `ACTIVE_ORG_COOKIE` = `"ventureos_active_org"` in `src/lib/workspace.ts`.
+- `getSession()` loads all memberships, resolves active from cookie (fallback: oldest membership).
+- Switching: POST `/api/workspace/switch` with `{ orgId }` → sets cookie → `router.refresh()`.
+
+## Adding features
+
+1. Read `org` from `getSession()`; filter all queries with `org_id`.
+2. Invites/member admin: check `role === "owner" || role === "admin"`.
+3. New org creation: use `create_workspace` RPC (not raw inserts from client).
+4. Pass `orgs` + `activeOrgId` to `Sidebar` / `WorkspaceSwitcher` when UI needs switcher.
+
+## Do not
+
+- Assume one org per user (`limit(1)` on memberships without cookie resolution).
+- Show ventures from non-active orgs in list views.
+- Add venture-level ACL unless explicitly requested — current model is org-wide access within a workspace.

@@ -22,7 +22,7 @@ export default async function VenturePage({
     .eq("id", id)
     .single();
 
-  if (!venture) notFound();
+  if (!venture || venture.org_id !== org.id) notFound();
 
   const [{ data: tasks }, { data: txns }, { data: notes }, members] =
     await Promise.all([
