@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 
 export default function RenameWorkspace({
   orgId,
@@ -14,15 +15,14 @@ export default function RenameWorkspace({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [name, setName] = useState(initialName);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function save() {
     const trimmed = name.trim();
     if (!trimmed || trimmed === initialName) return;
     setBusy(true);
-    setMsg(null);
     const supabase = createClient();
     const { error } = await supabase
       .from("organizations")
@@ -30,10 +30,10 @@ export default function RenameWorkspace({
       .eq("id", orgId);
     setBusy(false);
     if (error) {
-      setMsg({ ok: false, text: error.message });
+      toast.error(error.message);
       return;
     }
-    setMsg({ ok: true, text: "Workspace renamed." });
+    toast.success("Workspace renamed.");
     router.refresh();
   }
 
@@ -67,13 +67,6 @@ export default function RenameWorkspace({
           {busy ? "Saving…" : "Save"}
         </button>
       </div>
-      {msg && (
-        <p
-          className={`mt-2 text-xs ${msg.ok ? "text-signal-green" : "text-signal-red"}`}
-        >
-          {msg.text}
-        </p>
-      )}
     </div>
   );
 }

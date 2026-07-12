@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 import KanbanBoard from "@/components/KanbanBoard";
 import FinancialsPanel from "@/components/FinancialsPanel";
 import KnowledgePanel from "@/components/KnowledgePanel";
@@ -27,6 +28,31 @@ import type {
 
 type Tab = "overview" | "pipeline" | "money" | "vault" | "settings";
 
+// Fields editable via the buffered draft — everything else (name/description,
+// managed by VentureSettings) saves immediately through its own button.
+const DRAFT_KEYS = [
+  "state",
+  "execution_mode",
+  "current_stage",
+  "next_action",
+  "score_profit",
+  "score_demand",
+  "score_interest",
+  "score_low_cost",
+  "score_low_time",
+  "score_low_risk"
+] as const satisfies readonly (keyof Venture)[];
+
+function draftDiff(draft: Venture, saved: Venture): Partial<Venture> {
+  const diff: Partial<Venture> = {};
+  for (const key of DRAFT_KEYS) {
+    if (draft[key] !== saved[key]) {
+      (diff as Record<string, unknown>)[key] = draft[key];
+    }
+  }
+  return diff;
+}
+
 export default function VentureWorkspace({
   initialVenture,
   tasks,
@@ -47,12 +73,48 @@ export default function VentureWorkspace({
   userId: string;
 }) {
   const [venture, setVenture] = useState<Venture>(initialVenture);
+  const [draft, setDraft] = useState<Venture>(initialVenture);
+  const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
   const supabase = createClient();
+  const toast = useToast();
 
-  async function patch(fields: Partial<Venture>) {
+  const dirty = Object.keys(draftDiff(draft, venture)).length > 0;
+
+  function setDraftField(fields: Partial<Venture>) {
+    setDraft((d) => ({ ...d, ...fields }));
+  }
+
+  function discardDraft() {
+    setDraft(venture);
+  }
+
+  async function saveDraft() {
+    const diff = draftDiff(draft, venture);
+    if (Object.keys(diff).length === 0) return;
+    setSaving(true);
+    const { error } = await supabase.from("ventures").update(diff).eq("id", venture.id);
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setVenture((v) => ({ ...v, ...diff }));
+    toast.success("Venture updated.");
+  }
+
+  // Used by VentureSettings for the name/description fields, which have
+  // their own explicit "Save details" button and save immediately.
+  async function saveFields(fields: Partial<Venture>): Promise<boolean> {
+    const { error } = await supabase.from("ventures").update(fields).eq("id", venture.id);
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
     setVenture((v) => ({ ...v, ...fields }));
-    await supabase.from("ventures").update(fields).eq("id", venture.id);
+    setDraft((d) => ({ ...d, ...fields }));
+    toast.success("Venture updated.");
+    return true;
   }
 
   const tabs: { key: Tab; label: string }[] = [
@@ -79,20 +141,39 @@ export default function VentureWorkspace({
             )}
           </div>
           <div className="shrink-0 text-right">
-            <p className="stat-num text-3xl font-semibold">{priorityScore(venture)}</p>
+            <p className="stat-num text-3xl font-semibold">{priorityScore(draft)}</p>
             <p className="eyebrow">priority score</p>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <StateSelect
-            value={venture.state}
-            onChange={(state) => patch({ state })}
+            value={draft.state}
+            onChange={(state) => setDraftField({ state })}
           />
           <ModeToggle
-            value={venture.execution_mode}
-            onChange={(execution_mode) => patch({ execution_mode })}
+            value={draft.execution_mode}
+            onChange={(execution_mode) => setDraftField({ execution_mode })}
           />
+          <div className="ml-auto flex items-center gap-2">
+            {dirty && <span className="chip text-signal-amber">Unsaved changes</span>}
+            <button
+              type="button"
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={discardDraft}
+              disabled={!dirty || saving}
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              className="btn-primary px-3 py-1.5 text-xs"
+              onClick={saveDraft}
+              disabled={!dirty || saving}
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -114,7 +195,7 @@ export default function VentureWorkspace({
       </div>
 
       {tab === "overview" && (
-        <Overview venture={venture} onPatch={patch} />
+        <Overview draft={draft} onChange={setDraftField} />
       )}
       {tab === "pipeline" && (
         <KanbanBoard
@@ -140,7 +221,7 @@ export default function VentureWorkspace({
           ventureMembers={ventureMembers}
           orgMembers={members}
           canManage={canManage}
-          onPatch={patch}
+          onSave={saveFields}
         />
       )}
     </div>
@@ -148,14 +229,13 @@ export default function VentureWorkspace({
 }
 
 function Overview({
-  venture,
-  onPatch
+  draft,
+  onChange
 }: {
-  venture: Venture;
-  onPatch: (f: Partial<Venture>) => void;
+  draft: Venture;
+  onChange: (f: Partial<Venture>) => void;
 }) {
-  const [nextAction, setNextAction] = useState(venture.next_action ?? "");
-  const currentIdx = LIFECYCLE_ORDER.indexOf(venture.current_stage);
+  const currentIdx = LIFECYCLE_ORDER.indexOf(draft.current_stage);
 
   return (
     <div className="space-y-5">
@@ -169,7 +249,7 @@ function Overview({
             return (
               <button
                 key={stage}
-                onClick={() => onPatch({ current_stage: stage })}
+                onClick={() => onChange({ current_stage: stage })}
                 className="flex-1 min-w-[84px] rounded-lg border px-2 py-2 text-center text-xs transition-colors"
                 style={{
                   borderColor: current ? STAGE_ACCENT[stage] : "#272D3D",
@@ -187,7 +267,7 @@ function Overview({
           })}
         </div>
         <p className="mt-3 text-xs text-fg-faint">
-          {venture.execution_mode === "sequential"
+          {draft.execution_mode === "sequential"
             ? "Sequential mode — complete each stage before moving on."
             : "Parallel mode — run several tracks at once on the Pipeline tab."}
         </p>
@@ -200,9 +280,8 @@ function Overview({
           <input
             className="field"
             placeholder="What's the single next move? e.g. Find 20 potential customers"
-            value={nextAction}
-            onChange={(e) => setNextAction(e.target.value)}
-            onBlur={() => onPatch({ next_action: nextAction.trim() || null })}
+            value={draft.next_action ?? ""}
+            onChange={(e) => onChange({ next_action: e.target.value })}
           />
         </div>
       </div>
@@ -212,7 +291,7 @@ function Overview({
         <div className="mb-3 flex items-center justify-between">
           <p className="eyebrow">Priority scoring</p>
           <span className="stat-num text-sm text-fg-muted">
-            {priorityScore(venture)} / 100
+            {priorityScore(draft)} / 100
           </span>
         </div>
         <div className="space-y-3">
@@ -226,16 +305,19 @@ function Overview({
                 type="range"
                 min={0}
                 max={10}
-                value={venture[f.key]}
-                onChange={(e) => onPatch({ [f.key]: Number(e.target.value) } as Partial<Venture>)}
+                value={draft[f.key]}
+                onChange={(e) => onChange({ [f.key]: Number(e.target.value) } as Partial<Venture>)}
                 className="flex-1 accent-signal-violet"
               />
               <span className="stat-num w-6 text-right text-sm">
-                {venture[f.key]}
+                {draft[f.key]}
               </span>
             </div>
           ))}
         </div>
+        <p className="mt-3 text-xs text-fg-faint">
+          Changes here are buffered — click &quot;Save changes&quot; above to apply them.
+        </p>
       </div>
     </div>
   );

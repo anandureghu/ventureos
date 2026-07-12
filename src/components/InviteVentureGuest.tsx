@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 
 export default function InviteVentureGuest({
   ventureId
@@ -10,14 +11,16 @@ export default function InviteVentureGuest({
   ventureId: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function invite() {
-    if (!email.trim()) return;
+    if (!email.trim()) {
+      toast.warning("Enter an email address first.");
+      return;
+    }
     setBusy(true);
-    setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("add_venture_guest_by_email", {
       _venture: ventureId,
@@ -26,13 +29,12 @@ export default function InviteVentureGuest({
     });
     setBusy(false);
     if (error) {
-      setMsg({ ok: false, text: error.message });
+      toast.error(error.message);
       return;
     }
-    setMsg({
-      ok: true,
-      text: `${email.trim()} can now view and edit this venture (not your full workspace).`
-    });
+    toast.success(
+      `${email.trim()} can now view and edit this venture (not your full workspace).`
+    );
     setEmail("");
     router.refresh();
   }
@@ -56,13 +58,6 @@ export default function InviteVentureGuest({
           {busy ? "Inviting…" : "Invite"}
         </button>
       </div>
-      {msg && (
-        <p
-          className={`mt-2 text-xs ${msg.ok ? "text-signal-green" : "text-signal-red"}`}
-        >
-          {msg.text}
-        </p>
-      )}
       <p className="mt-2 text-xs text-fg-faint">
         They must sign in with Google once first. People already in your workspace
         already have access — use Workspace → Team for them.

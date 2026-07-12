@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 import { CATEGORY_OPTIONS } from "@/lib/constants";
 import type { VentureCategory } from "@/lib/types";
 
@@ -14,6 +15,7 @@ export default function NewVentureDialog({
   userId: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -22,7 +24,10 @@ export default function NewVentureDialog({
   const [mode, setMode] = useState<"parallel" | "sequential">("parallel");
 
   async function create() {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      toast.warning("Give the venture a name first.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
     const { data, error } = await supabase
@@ -41,12 +46,13 @@ export default function NewVentureDialog({
 
     setSaving(false);
     if (error) {
-      alert(`Could not create venture: ${error.message}`);
+      toast.error(`Could not create venture: ${error.message}`);
       return;
     }
     setOpen(false);
     setName("");
     setDescription("");
+    toast.success("Venture created.");
     if (data?.id) router.push(`/ventures/${data.id}`);
     router.refresh();
   }

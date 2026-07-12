@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { initials } from "@/lib/format";
+import { useToast } from "@/components/ToastProvider";
 import InviteVentureGuest from "@/components/InviteVentureGuest";
 import type { OrgMember, Venture, VentureMember } from "@/lib/types";
 
@@ -12,36 +13,37 @@ export default function VentureSettings({
   ventureMembers,
   orgMembers,
   canManage,
-  onPatch
+  onSave
 }: {
   venture: Venture;
   ventureMembers: VentureMember[];
   orgMembers: OrgMember[];
   canManage: boolean;
-  onPatch: (fields: Partial<Venture>) => void;
+  onSave: (fields: Partial<Venture>) => Promise<boolean>;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [name, setName] = useState(venture.name);
   const [description, setDescription] = useState(venture.description ?? "");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const orgMemberIds = new Set(orgMembers.map((m) => m.user_id));
   const externalGuests = ventureMembers.filter((m) => !orgMemberIds.has(m.user_id));
 
   async function saveDetails() {
     const trimmedName = name.trim();
-    if (!trimmedName) return;
-    onPatch({
+    if (!trimmedName) {
+      toast.warning("Venture name can't be empty.");
+      return;
+    }
+    await onSave({
       name: trimmedName,
       description: description.trim() || null
     });
-    setMsg({ ok: true, text: "Venture details saved." });
   }
 
   async function removeGuest(memberId: string) {
     setBusy(true);
-    setMsg(null);
     const supabase = createClient();
     const { error } = await supabase
       .from("venture_members")
@@ -49,9 +51,10 @@ export default function VentureSettings({
       .eq("id", memberId);
     setBusy(false);
     if (error) {
-      setMsg({ ok: false, text: error.message });
+      toast.error(error.message);
       return;
     }
+    toast.success("Collaborator removed.");
     router.refresh();
   }
 
@@ -143,14 +146,6 @@ export default function VentureSettings({
       {!canManage && (
         <p className="text-xs text-fg-faint">
           Only workspace owners and admins can edit venture settings and invites.
-        </p>
-      )}
-
-      {msg && (
-        <p
-          className={`text-xs ${msg.ok ? "text-signal-green" : "text-signal-red"}`}
-        >
-          {msg.text}
         </p>
       )}
     </div>

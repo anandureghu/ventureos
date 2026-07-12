@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 import { formatDate } from "@/lib/format";
 import type { Note, NoteType } from "@/lib/types";
 
@@ -28,9 +29,13 @@ export default function KnowledgePanel({
   const [url, setUrl] = useState("");
   const [type, setType] = useState<NoteType>("note");
   const supabase = createClient();
+  const toast = useToast();
 
   async function add() {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      toast.warning("Give the note a title first.");
+      return;
+    }
     const { data, error } = await supabase
       .from("notes")
       .insert({
@@ -44,18 +49,24 @@ export default function KnowledgePanel({
       .select("*")
       .single();
     if (error) {
-      alert(`Could not save note: ${error.message}`);
+      toast.error(`Could not save note: ${error.message}`);
       return;
     }
     if (data) setNotes((n) => [data as Note, ...n]);
     setTitle("");
     setContent("");
     setUrl("");
+    toast.success("Note saved.");
   }
 
   async function remove(id: string) {
+    const removed = notes.find((x) => x.id === id);
     setNotes((n) => n.filter((x) => x.id !== id));
-    await supabase.from("notes").delete().eq("id", id);
+    const { error } = await supabase.from("notes").delete().eq("id", id);
+    if (error && removed) {
+      setNotes((n) => [removed, ...n]);
+      toast.error(`Could not delete note: ${error.message}`);
+    }
   }
 
   return (

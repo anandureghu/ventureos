@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 import { formatMoney, formatDate } from "@/lib/format";
 import type { Transaction, TxnType } from "@/lib/types";
 
@@ -19,6 +20,7 @@ export default function FinancialsPanel({
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const supabase = createClient();
+  const toast = useToast();
 
   const { invested, revenue } = useMemo(() => {
     let invested = 0;
@@ -32,7 +34,10 @@ export default function FinancialsPanel({
 
   async function add() {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return;
+    if (!amt || amt <= 0) {
+      toast.warning("Enter an amount greater than zero.");
+      return;
+    }
     const { data, error } = await supabase
       .from("transactions")
       .insert({
@@ -45,17 +50,23 @@ export default function FinancialsPanel({
       .select("*")
       .single();
     if (error) {
-      alert(`Could not save: ${error.message}`);
+      toast.error(`Could not save: ${error.message}`);
       return;
     }
     if (data) setTxns((t) => [data as Transaction, ...t]);
     setAmount("");
     setDesc("");
+    toast.success("Transaction recorded.");
   }
 
   async function remove(id: string) {
+    const removed = txns.find((x) => x.id === id);
     setTxns((t) => t.filter((x) => x.id !== id));
-    await supabase.from("transactions").delete().eq("id", id);
+    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    if (error && removed) {
+      setTxns((t) => [removed, ...t]);
+      toast.error(`Could not delete transaction: ${error.message}`);
+    }
   }
 
   const net = revenue - invested;

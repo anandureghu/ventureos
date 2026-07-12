@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 
 export default function GoogleButton() {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   async function signIn() {
@@ -22,7 +24,7 @@ export default function GoogleButton() {
 
     if (error) {
       setLoading(false);
-      alert(`Sign-in failed: ${error.message}`);
+      toast.error(`Sign-in failed: ${error.message}`);
     }
     // On success the browser is redirected to Google.
   }

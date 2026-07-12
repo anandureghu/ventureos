@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ToastProvider";
 import type { MyOrg } from "@/lib/data";
 
 export default function WorkspaceSwitcher({
@@ -12,11 +13,11 @@ export default function WorkspaceSwitcher({
   activeOrgId: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const active = orgs.find((item) => item.org.id === activeOrgId) ?? orgs[0];
@@ -26,7 +27,6 @@ export default function WorkspaceSwitcher({
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
         setCreating(false);
-        setError(null);
       }
     }
     document.addEventListener("mousedown", onClickOutside);
@@ -39,7 +39,6 @@ export default function WorkspaceSwitcher({
       return;
     }
     setBusy(true);
-    setError(null);
     const res = await fetch("/api/workspace/switch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -48,7 +47,7 @@ export default function WorkspaceSwitcher({
     setBusy(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not switch workspace");
+      toast.error(data.error ?? "Could not switch workspace");
       return;
     }
     setOpen(false);
@@ -57,9 +56,11 @@ export default function WorkspaceSwitcher({
   }
 
   async function createWorkspace() {
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      toast.warning("Enter a workspace name first.");
+      return;
+    }
     setBusy(true);
-    setError(null);
     const res = await fetch("/api/workspace/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -68,12 +69,13 @@ export default function WorkspaceSwitcher({
     setBusy(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not create workspace");
+      toast.error(data.error ?? "Could not create workspace");
       return;
     }
     setNewName("");
     setCreating(false);
     setOpen(false);
+    toast.success("Workspace created.");
     router.push("/dashboard");
     router.refresh();
   }
@@ -85,7 +87,6 @@ export default function WorkspaceSwitcher({
         onClick={() => {
           setOpen((value) => !value);
           setCreating(false);
-          setError(null);
         }}
         className="flex w-full items-center gap-2 rounded-lg border border-ink-500 bg-ink-700 px-2.5 py-2 text-left transition-colors hover:bg-ink-600"
         disabled={busy}
@@ -173,10 +174,6 @@ export default function WorkspaceSwitcher({
               </span>
               New workspace
             </button>
-          )}
-
-          {error && (
-            <p className="px-3 py-2 text-xs text-signal-red">{error}</p>
           )}
         </div>
       )}

@@ -4,19 +4,22 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { initials } from "@/lib/format";
+import { useToast } from "@/components/ToastProvider";
 import type { Profile } from "@/lib/types";
 
 export default function ProfileSettings({ profile }: { profile: Profile }) {
   const router = useRouter();
+  const toast = useToast();
   const [fullName, setFullName] = useState(profile.full_name ?? "");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function save() {
     const trimmed = fullName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      toast.warning("Display name can't be empty.");
+      return;
+    }
     setBusy(true);
-    setMsg(null);
     const supabase = createClient();
     const { error } = await supabase
       .from("profiles")
@@ -24,10 +27,10 @@ export default function ProfileSettings({ profile }: { profile: Profile }) {
       .eq("id", profile.id);
     setBusy(false);
     if (error) {
-      setMsg({ ok: false, text: error.message });
+      toast.error(error.message);
       return;
     }
-    setMsg({ ok: true, text: "Profile updated." });
+    toast.success("Profile updated.");
     router.refresh();
   }
 
@@ -72,13 +75,6 @@ export default function ProfileSettings({ profile }: { profile: Profile }) {
             {busy ? "Saving…" : "Save"}
           </button>
         </div>
-        {msg && (
-          <p
-            className={`mt-2 text-xs ${msg.ok ? "text-signal-green" : "text-signal-red"}`}
-          >
-            {msg.text}
-          </p>
-        )}
       </div>
 
       <div className="panel p-5">

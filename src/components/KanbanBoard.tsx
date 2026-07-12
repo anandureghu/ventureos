@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 import { KANBAN_COLUMNS } from "@/lib/constants";
 import { initials } from "@/lib/format";
 import type { OrgMember, Task, TaskStatus } from "@/lib/types";
@@ -23,6 +24,7 @@ export default function KanbanBoard({
   const [draft, setDraft] = useState("");
   const [track, setTrack] = useState("");
   const supabase = createClient();
+  const toast = useToast();
 
   function nameFor(id: string | null) {
     if (!id) return null;
@@ -31,7 +33,10 @@ export default function KanbanBoard({
   }
 
   async function addTask() {
-    if (!draft.trim()) return;
+    if (!draft.trim()) {
+      toast.warning("Enter a task title first.");
+      return;
+    }
     const optimistic: Task = {
       id: `tmp-${Date.now()}`,
       venture_id: ventureId,
@@ -64,9 +69,10 @@ export default function KanbanBoard({
 
     if (error) {
       setTasks((t) => t.filter((x) => x.id !== optimistic.id));
-      alert(`Could not add task: ${error.message}`);
+      toast.error(`Could not add task: ${error.message}`);
     } else if (data) {
       setTasks((t) => t.map((x) => (x.id === optimistic.id ? (data as Task) : x)));
+      toast.success("Task added.");
     }
   }
 
@@ -74,22 +80,46 @@ export default function KanbanBoard({
     const idx = STATUS_KEYS.indexOf(task.status);
     const next = STATUS_KEYS[idx + dir];
     if (!next) return;
+    const previous = task.status;
     setTasks((t) =>
       t.map((x) => (x.id === task.id ? { ...x, status: next } : x))
     );
-    await supabase.from("tasks").update({ status: next }).eq("id", task.id);
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status: next })
+      .eq("id", task.id);
+    if (error) {
+      setTasks((t) =>
+        t.map((x) => (x.id === task.id ? { ...x, status: previous } : x))
+      );
+      toast.error(`Could not move task: ${error.message}`);
+    }
   }
 
   async function assign(task: Task, assignee: string | null) {
+    const previous = task.assignee_id;
     setTasks((t) =>
       t.map((x) => (x.id === task.id ? { ...x, assignee_id: assignee } : x))
     );
-    await supabase.from("tasks").update({ assignee_id: assignee }).eq("id", task.id);
+    const { error } = await supabase
+      .from("tasks")
+      .update({ assignee_id: assignee })
+      .eq("id", task.id);
+    if (error) {
+      setTasks((t) =>
+        t.map((x) => (x.id === task.id ? { ...x, assignee_id: previous } : x))
+      );
+      toast.error(`Could not reassign task: ${error.message}`);
+    }
   }
 
   async function remove(task: Task) {
     setTasks((t) => t.filter((x) => x.id !== task.id));
-    await supabase.from("tasks").delete().eq("id", task.id);
+    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    if (error) {
+      setTasks((t) => [...t, task]);
+      toast.error(`Could not delete task: ${error.message}`);
+    }
   }
 
   return (

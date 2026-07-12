@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ToastProvider";
 import type { MemberRole } from "@/lib/types";
 
 export default function InviteMember({ orgId }: { orgId: string }) {
   const router = useRouter();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("member");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function invite() {
-    if (!email.trim()) return;
+    if (!email.trim()) {
+      toast.warning("Enter an email address first.");
+      return;
+    }
     setBusy(true);
-    setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("add_member_by_email", {
       _org: orgId,
@@ -24,10 +27,10 @@ export default function InviteMember({ orgId }: { orgId: string }) {
     });
     setBusy(false);
     if (error) {
-      setMsg({ ok: false, text: error.message });
+      toast.error(error.message);
       return;
     }
-    setMsg({ ok: true, text: `${email.trim()} now has access.` });
+    toast.success(`${email.trim()} now has access.`);
     setEmail("");
     router.refresh();
   }
@@ -55,15 +58,6 @@ export default function InviteMember({ orgId }: { orgId: string }) {
           {busy ? "Adding…" : "Add"}
         </button>
       </div>
-      {msg && (
-        <p
-          className={`mt-2 text-xs ${
-            msg.ok ? "text-signal-green" : "text-signal-red"
-          }`}
-        >
-          {msg.text}
-        </p>
-      )}
       <p className="mt-2 text-xs text-fg-faint">
         They must sign in with Google once first. After joining, they can switch to
         this workspace from the sidebar — they only see ventures in workspaces they
