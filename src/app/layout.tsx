@@ -1,11 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
+import PwaRegister from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "VentureOS — the operating system for founders running many ideas",
   description:
-    "Track every business idea, its stage, tasks, money, and next action in one command center."
+    "Track every business idea, its stage, tasks, money, and next action in one command center.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "VentureOS"
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icons/apple-touch-icon.png"
+  }
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0D0F16"
 };
 
 export default function RootLayout({
@@ -25,6 +41,7 @@ export default function RootLayout({
       </head>
       <body>
         <ToastProvider>{children}</ToastProvider>
+        <PwaRegister />
       </body>
     </html>
   );
