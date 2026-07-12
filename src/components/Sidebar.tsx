@@ -17,25 +17,41 @@ export default function Sidebar({
   orgs,
   activeOrgId,
   userName,
-  avatarUrl
+  avatarUrl,
+  open = false,
+  onClose
 }: {
   orgs: MyOrg[];
   activeOrgId: string;
   userName: string;
   avatarUrl: string | null;
+  open?: boolean;
+  onClose?: () => void;
 }) {
   const pathname = usePathname();
   const accountActive = pathname === "/account" || pathname.startsWith("/account/");
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-ink-500 bg-ink-800 px-3 py-5">
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 shrink-0 -translate-x-full flex-col border-r border-ink-500 bg-ink-800 px-3 py-5 transition-transform duration-200 md:static md:z-auto md:w-60 md:translate-x-0 ${
+        open ? "translate-x-0" : ""
+      }`}
+    >
       <div className="flex items-center gap-2.5 px-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.svg" alt="VentureOS" className="h-8 w-8 object-contain" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="font-display text-sm font-semibold leading-none">VentureOS</p>
           <p className="mt-1 truncate text-[11px] text-fg-faint">Portfolio OS</p>
         </div>
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={onClose}
+          className="btn-ghost px-2 py-1 text-sm md:hidden"
+        >
+          ✕
+        </button>
       </div>
 
       <div className="mt-5">
@@ -50,6 +66,7 @@ export default function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                 active
                   ? "bg-ink-600 text-fg"
@@ -66,6 +83,7 @@ export default function Sidebar({
       <div className="mt-auto space-y-1">
         <Link
           href="/account"
+          onClick={onClose}
           className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
             accountActive
               ? "border-signal-violet/40 bg-ink-600"
