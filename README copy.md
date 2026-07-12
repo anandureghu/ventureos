@@ -22,7 +22,7 @@ Built with **Next.js (App Router) + Supabase + Tailwind**. Auth is **Google sign
 Next.js (App Router, RSC)  ──>  Supabase Postgres (RLS on every table)
         │                              │
         ├─ @supabase/ssr (cookies)     ├─ Auth (Google OAuth)
-        └─ proxy (session + gate)       └─ Storage bucket "vault"
+        └─ middleware (session + gate) └─ Storage bucket "vault"
 ```
 
 Data model: `profiles`, `organizations`, `organization_members`, `ventures`, `tasks`, `transactions`, `notes`, `documents`. See `supabase/migrations/`.
@@ -32,7 +32,7 @@ Data model: `profiles`, `organizations`, `organization_members`, `ventures`, `ta
 ## Setup
 
 ### 1. Prerequisites
-- Node.js 20+ (required by Next.js 16)
+- Node.js 18.18+ (or 20+)
 - A free [Supabase](https://supabase.com) project
 - A Google Cloud project for OAuth
 
@@ -42,45 +42,35 @@ npm install
 cp .env.example .env.local
 ```
 
-### 3. Configure Supabase from the repo
+### 3. Run the migrations
+You have two options.
 
+**A) Supabase CLI (recommended)**
 ```bash
-cp .env.example .env.local
-# Fill Supabase URL/anon key, project ref, Google OAuth client ID + secret
-
-supabase login
-npm run supabase:setup    # db push + config push (auth, Google provider)
+npm i -g supabase
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push          # applies everything in supabase/migrations
 ```
 
-See **`supabase/README.md`** for full details. Migrations live in `supabase/migrations/` (0001–0005).
+**B) SQL editor**
+Open the Supabase dashboard → SQL Editor, and run the files in order:
+`0001_foundation.sql`, `0002_ventures.sql`, `0003_rls.sql`.
 
-**One-time in Google Cloud Console** — OAuth Web client → Authorized redirect URI:
-```
-https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback
-```
-
-Google client ID/secret go in `.env.local`; they are pushed to Supabase via `config.toml` — no dashboard provider setup needed.
-
-### 4. Configure Google sign-in (credentials only)
-
+### 4. Configure Google sign-in
 1. **Google Cloud Console** → APIs & Services → Credentials → *Create OAuth client ID* → Web application.
-   - Authorized redirect URI: `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
-2. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`.
-3. Run `npm run supabase:config:push` (or `npm run supabase:setup`).
-
-App redirect (`http://localhost:3000/auth/callback`) is configured in `supabase/config.toml`, not Google Cloud.
+   - Authorized redirect URI:
+     `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
+2. **Supabase dashboard** → Authentication → Providers → **Google** → paste the Client ID and Client Secret, enable it.
+3. **Supabase dashboard** → Authentication → URL Configuration:
+   - Site URL: `http://localhost:3000` (and your production URL later)
+   - Redirect URLs: add `http://localhost:3000/auth/callback`
 
 ### 5. Fill in `.env.local`
-
-Copy from `.env.example` — minimum required:
-
+From Supabase → Settings → API:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR-ANON-KEY
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-SUPABASE_PROJECT_REF=YOUR-PROJECT-REF
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-client-secret
 ```
 
 ### 6. Run
@@ -106,4 +96,3 @@ This is a solid, runnable foundation that maps directly to the VentureOS vision.
 - The "AI Co-Founder" layer — call an LLM with a venture's stage, tasks, and finances to suggest the next action.
 
 If you later sell this as SaaS, the multi-tenant org model and RLS are already the right shape for it.
-# ventureos

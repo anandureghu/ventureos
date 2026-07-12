@@ -1,0 +1,47 @@
+---
+description: Next.js App Router and React patterns for VentureOS
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Next.js Patterns
+
+## Data access
+
+```typescript
+// Server Component / route handler
+import { getSession } from "@/lib/data";
+import { createClient } from "@/lib/supabase/server";
+
+const { org, userId, role, orgs } = await getSession();
+const supabase = await createClient();
+// Always scope queries: .eq("org_id", org.id)
+```
+
+```typescript
+// Client Component (mutations, RPC)
+"use client";
+import { createClient } from "@/lib/supabase/client";
+```
+
+## Auth session
+
+- Use `getSession()` — not raw `supabase.auth.getSession()` — for org + role resolution.
+- Active workspace comes from `ventureos_active_org` cookie (see `src/lib/workspace.ts`).
+- Switch/create workspace via `/api/workspace/switch` and `/api/workspace/create`.
+
+## Components
+
+- **Server pages** fetch data; pass props to client components (`VentureWorkspace`, `KanbanBoard`, etc.).
+- **Client components** only when needed: forms, drag, router.refresh(), Supabase RPC from browser.
+- UI classes: `panel`, `panel-raised`, `btn-primary`, `btn-ghost`, `field`, `chip`, `eyebrow` (see `globals.css`).
+
+## Route handlers
+
+- Validate auth with `createClient()` + `getUser()`.
+- Return `NextResponse.json` with appropriate status codes.
+- Set cookies in route handlers (not Server Components).
+
+## Venture detail guard
+
+When loading a venture by ID, verify `venture.org_id === session.org.id` before rendering (defense in depth beyond RLS).

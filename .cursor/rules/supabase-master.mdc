@@ -1,0 +1,66 @@
+---
+description: Supabase CLI setup, config-as-code, auth, and migration workflow for VentureOS
+globs: "{supabase/**,.env.example,scripts/supabase-setup.sh}"
+alwaysApply: false
+---
+
+# Supabase Master
+
+VentureOS manages Supabase from the repo — not the dashboard (except one-time Google redirect URI in Google Cloud).
+
+## Source of truth
+
+| Concern | Location |
+|---------|----------|
+| Schema | `supabase/migrations/*.sql` |
+| Auth + Google OAuth | `supabase/config.toml` |
+| Env secrets | `.env.local` (never commit) |
+| Full setup | `npm run supabase:setup` |
+
+## Env vars (.env.local)
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SITE_URL
+SUPABASE_PROJECT_REF
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+```
+
+Optional: `SUPABASE_DB_PASSWORD`, `SUPABASE_ACCESS_TOKEN` (CI).
+
+## Push workflow
+
+```bash
+supabase login
+npm run supabase:setup    # db push + config push
+```
+
+Or separately: `supabase:db:push`, `supabase:config:push`.
+
+## Google OAuth
+
+- **Google Cloud** redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`
+- **Supabase** app callbacks: `additional_redirect_urls` in `config.toml` (e.g. `http://localhost:3000/auth/callback`)
+- Credentials: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` via `env()` in config.toml
+
+Do **not** configure Google client ID/secret in Supabase dashboard — use `config push`.
+
+## config.toml env() rule
+
+Env names in `env(...)` must **not** start with `SUPABASE_` (CLI skips them). Use `GOOGLE_CLIENT_ID`, not `SUPABASE_AUTH_EXTERNAL_GOOGLE_*`.
+
+## New schema changes
+
+1. Add `supabase/migrations/NNNN_name.sql`
+2. `npm run supabase:db:push`
+3. Update `src/lib/types.ts` if needed
+
+## Verify migrations
+
+```bash
+npm run supabase:migration:list
+```
+
+Local and Remote columns must match.
