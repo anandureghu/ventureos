@@ -21,6 +21,9 @@ export type ExecutionMode = "sequential" | "parallel";
 export type TaskStatus = "backlog" | "research" | "doing" | "waiting" | "completed";
 export type TaskPriority = "low" | "medium" | "high";
 export type TxnType = "expense" | "revenue";
+export type TxnFundSource = "company" | "person";
+export type TxnSettlementStatus = "pending" | "completed";
+export type TxnReimbursementStatus = "pending" | "resolved";
 export type NoteType = "note" | "research" | "supplier" | "competitor" | "meeting";
 
 export interface Profile {
@@ -52,6 +55,13 @@ export interface VentureMember {
   user_id: string;
   role: VentureMemberRole;
   profiles?: Profile;
+}
+
+export interface Tag {
+  id: string;
+  venture_id: string;
+  name: string;
+  created_at: string;
 }
 
 export interface Venture {
@@ -92,6 +102,7 @@ export interface Task {
   position: number;
   created_by: string;
   completed_at: string | null;
+  tags: string[];
 }
 
 export interface Transaction {
@@ -103,6 +114,13 @@ export interface Transaction {
   amount: number;
   currency: string;
   occurred_on: string;
+  stage: LifecycleStage | null;
+  tags: string[];
+  purpose: string | null;
+  assigned_to: string | null;
+  fund_source: TxnFundSource;
+  settlement_status: TxnSettlementStatus;
+  reimbursement_status: TxnReimbursementStatus | null;
 }
 
 export interface Note {
@@ -113,4 +131,6 @@ export interface Note {
   type: NoteType;
   url: string | null;
   created_at: string;
+  stage: LifecycleStage | null;
+  tags: string[];
 }

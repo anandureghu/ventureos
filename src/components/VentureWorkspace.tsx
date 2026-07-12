@@ -203,17 +203,25 @@ export default function VentureWorkspace({
           userId={userId}
           members={members}
           initial={tasks}
+          ventureStage={venture.current_stage}
         />
       )}
       {tab === "money" && (
         <FinancialsPanel
           ventureId={venture.id}
           userId={userId}
+          members={members}
+          ventureStage={venture.current_stage}
           initial={transactions}
         />
       )}
       {tab === "vault" && (
-        <KnowledgePanel ventureId={venture.id} userId={userId} initial={notes} />
+        <KnowledgePanel
+          ventureId={venture.id}
+          userId={userId}
+          ventureStage={venture.current_stage}
+          initial={notes}
+        />
       )}
       {tab === "settings" && (
         <VentureSettings

@@ -1,6 +1,10 @@
 import type {
   LifecycleStage,
   TaskStatus,
+  TxnFundSource,
+  TxnReimbursementStatus,
+  TxnSettlementStatus,
+  TxnType,
   VentureCategory,
   Venture
 } from "./types";
@@ -81,6 +85,25 @@ export function priorityScore(v: Pick<Venture, (typeof SCORE_FACTORS)[number]["k
     v.score_low_risk;
   return Math.round((total / 60) * 100);
 }
+
+export const FUND_SOURCE_LABEL: Record<TxnFundSource, string> = {
+  company: "Company fund",
+  person: "Personal fund"
+};
+
+// Settlement tracks the transaction with the outside party — label depends
+// on whether money is leaving (expense) or arriving (revenue).
+export const SETTLEMENT_LABEL: Record<TxnType, Record<TxnSettlementStatus, string>> = {
+  expense: { pending: "Pending", completed: "Paid" },
+  revenue: { pending: "Pending", completed: "Received" }
+};
+
+// Reimbursement only applies when fund_source = "person" — has the company
+// paid that person back for money they fronted.
+export const REIMBURSEMENT_LABEL: Record<TxnReimbursementStatus, string> = {
+  pending: "Reimbursement pending",
+  resolved: "Reimbursed"
+};
 
 export const STAGE_ACCENT: Record<LifecycleStage, string> = {
   idea: "#8A90A3",

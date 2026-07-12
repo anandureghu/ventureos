@@ -65,6 +65,31 @@
   }
 }
 
+/* success confirmation dialog */
+@keyframes success-pop-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes success-circle-draw {
+  from { stroke-dasharray: 151; stroke-dashoffset: 151; }
+  to { stroke-dasharray: 151; stroke-dashoffset: 0; }
+}
+@keyframes success-check-draw {
+  from { stroke-dasharray: 36; stroke-dashoffset: 36; }
+  to { stroke-dasharray: 36; stroke-dashoffset: 0; }
+}
+.success-pop {
+  animation: success-pop-in 0.25s ease-out;
+}
+.success-check-circle {
+  animation: success-circle-draw 0.5s ease-out forwards;
+}
+.success-check-mark {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  animation: success-check-draw 0.35s ease-out 0.4s forwards;
+}
+
 /* slim scrollbars for the kanban */
 .scroll-x::-webkit-scrollbar { height: 8px; }
 .scroll-x::-webkit-scrollbar-thumb { background: theme("colors.ink.500"); border-radius: 8px; }

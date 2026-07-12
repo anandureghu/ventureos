@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
+import TagInput from "@/components/TagInput";
+import FilterBar from "@/components/FilterBar";
 import { KANBAN_COLUMNS } from "@/lib/constants";
 import { initials } from "@/lib/format";
-import type { OrgMember, Task, TaskStatus } from "@/lib/types";
+import type { LifecycleStage, OrgMember, Task, TaskStatus } from "@/lib/types";
 
 const STATUS_KEYS = KANBAN_COLUMNS.map((c) => c.key);
 
@@ -13,18 +15,37 @@ export default function KanbanBoard({
   ventureId,
   userId,
   members,
-  initial
+  initial,
+  ventureStage
 }: {
   ventureId: string;
   userId: string;
   members: OrgMember[];
   initial: Task[];
+  ventureStage: LifecycleStage;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initial);
   const [draft, setDraft] = useState("");
   const [track, setTrack] = useState("");
+  const [draftTags, setDraftTags] = useState<string[]>([]);
+  const [stageFilter, setStageFilter] = useState<LifecycleStage | "">("");
+  const [tagFilter, setTagFilter] = useState("");
   const supabase = createClient();
   const toast = useToast();
+
+  const tagOptions = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach((t) => t.tags.forEach((tag) => set.add(tag)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
+
+  const visibleTasks = useMemo(() => {
+    return tasks.filter(
+      (t) =>
+        (!stageFilter || t.stage === stageFilter) &&
+        (!tagFilter || t.tags.includes(tagFilter))
+    );
+  }, [tasks, stageFilter, tagFilter]);
 
   function nameFor(id: string | null) {
     if (!id) return null;
@@ -43,7 +64,7 @@ export default function KanbanBoard({
       title: draft.trim(),
       description: null,
       status: "backlog",
-      stage: null,
+      stage: ventureStage,
       track: track.trim() || null,
       priority: "medium",
       assignee_id: null,
@@ -51,10 +72,13 @@ export default function KanbanBoard({
       due_date: null,
       position: 0,
       created_by: userId,
-      completed_at: null
+      completed_at: null,
+      tags: draftTags
     };
     setTasks((t) => [optimistic, ...t]);
     setDraft("");
+    setTrack("");
+    setDraftTags([]);
 
     const { data, error } = await supabase
       .from("tasks")
@@ -62,7 +86,9 @@ export default function KanbanBoard({
         venture_id: ventureId,
         created_by: userId,
         title: optimistic.title,
-        track: optimistic.track
+        track: optimistic.track,
+        stage: ventureStage,
+        tags: optimistic.tags
       })
       .select("*")
       .single();
@@ -113,6 +139,16 @@ export default function KanbanBoard({
     }
   }
 
+  async function retag(task: Task, tags: string[]) {
+    const previous = task.tags;
+    setTasks((t) => t.map((x) => (x.id === task.id ? { ...x, tags } : x)));
+    const { error } = await supabase.from("tasks").update({ tags }).eq("id", task.id);
+    if (error) {
+      setTasks((t) => t.map((x) => (x.id === task.id ? { ...x, tags: previous } : x)));
+      toast.error(`Could not update tags: ${error.message}`);
+    }
+  }
+
   async function remove(task: Task) {
     setTasks((t) => t.filter((x) => x.id !== task.id));
     const { error } = await supabase.from("tasks").delete().eq("id", task.id);
@@ -124,7 +160,7 @@ export default function KanbanBoard({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         <input
           className="field flex-1 min-w-[200px]"
           placeholder="Add a task…"
@@ -143,10 +179,21 @@ export default function KanbanBoard({
           Add
         </button>
       </div>
+      <div className="mb-4 max-w-md">
+        <TagInput ventureId={ventureId} value={draftTags} onChange={setDraftTags} />
+      </div>
+
+      <FilterBar
+        stage={stageFilter}
+        onStageChange={setStageFilter}
+        tag={tagFilter}
+        onTagChange={setTagFilter}
+        tagOptions={tagOptions}
+      />
 
       <div className="scroll-x flex gap-3 overflow-x-auto pb-2">
         {KANBAN_COLUMNS.map((col) => {
-          const items = tasks.filter((t) => t.status === col.key);
+          const items = visibleTasks.filter((t) => t.status === col.key);
           return (
             <div key={col.key} className="w-64 shrink-0">
               <div className="mb-2 flex items-center justify-between px-1">
@@ -157,6 +204,7 @@ export default function KanbanBoard({
                 {items.map((task) => (
                   <Card
                     key={task.id}
+                    ventureId={ventureId}
                     task={task}
                     status={task.status}
                     assigneeName={nameFor(task.assignee_id)}
@@ -164,6 +212,7 @@ export default function KanbanBoard({
                     onMove={move}
                     onAssign={assign}
                     onRemove={remove}
+                    onRetag={retag}
                   />
                 ))}
                 {items.length === 0 && (
@@ -181,14 +230,17 @@ export default function KanbanBoard({
 }
 
 function Card({
+  ventureId,
   task,
   status,
   assigneeName,
   members,
   onMove,
   onAssign,
-  onRemove
+  onRemove,
+  onRetag
 }: {
+  ventureId: string;
   task: Task;
   status: TaskStatus;
   assigneeName: string | null;
@@ -196,12 +248,38 @@ function Card({
   onMove: (t: Task, d: -1 | 1) => void;
   onAssign: (t: Task, a: string | null) => void;
   onRemove: (t: Task) => void;
+  onRetag: (t: Task, tags: string[]) => void;
 }) {
   const idx = STATUS_KEYS.indexOf(status);
+  const [tagging, setTagging] = useState(false);
+
   return (
     <div className="panel-raised group p-3">
       <p className="text-sm leading-snug">{task.title}</p>
-      {task.track && <p className="chip mt-2">{task.track}</p>}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {task.track && <p className="chip">{task.track}</p>}
+        {task.tags.map((tag) => (
+          <span key={tag} className="chip">
+            {tag}
+          </span>
+        ))}
+        <button
+          type="button"
+          className="text-[11px] text-fg-faint hover:text-fg"
+          onClick={() => setTagging((v) => !v)}
+        >
+          + tag
+        </button>
+      </div>
+      {tagging && (
+        <div className="mt-2">
+          <TagInput
+            ventureId={ventureId}
+            value={task.tags}
+            onChange={(tags) => onRetag(task, tags)}
+          />
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-between">
         <select
           className="rounded-md border border-ink-500 bg-ink-800 px-1.5 py-1 text-[11px] text-fg-muted"
