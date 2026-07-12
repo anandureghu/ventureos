@@ -156,11 +156,21 @@ export default async function DashboardPage() {
                 style={{ background: STAGE_ACCENT[v.current_stage] }}
               />
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="chip">{CATEGORY_LABEL[v.category]}</p>
-                  <p className="mt-2 truncate font-display text-base font-semibold">
-                    {v.name}
-                  </p>
+                <div className="flex min-w-0 items-start gap-2.5">
+                  {v.logo_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={v.logo_url}
+                      alt=""
+                      className="mt-0.5 h-8 w-8 shrink-0 rounded-md object-cover"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="chip">{CATEGORY_LABEL[v.category]}</p>
+                    <p className="mt-2 truncate font-display text-base font-semibold">
+                      {v.name}
+                    </p>
+                  </div>
                 </div>
                 <span className="stat-num text-lg font-semibold text-fg">
                   {priorityScore(v)}
@@ -171,7 +181,7 @@ export default async function DashboardPage() {
                   className="inline-block h-1.5 w-1.5 rounded-full"
                   style={{ background: STAGE_ACCENT[v.current_stage] }}
                 />
-                {STAGE_LABEL[v.current_stage]} · {v.execution_mode}
+                {STAGE_LABEL[v.current_stage]}
               </p>
             </Link>
           ))}

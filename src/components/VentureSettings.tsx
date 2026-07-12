@@ -9,6 +9,7 @@ import Dialog from "@/components/Dialog";
 import ResultDialog from "@/components/ResultDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import InviteVentureGuest from "@/components/InviteVentureGuest";
+import LogoUpload from "@/components/LogoUpload";
 import type { OrgMember, Venture, VentureMember } from "@/lib/types";
 
 export default function VentureSettings({
@@ -65,6 +66,15 @@ export default function VentureSettings({
     setResult({ variant: "success", message: "Venture details saved." });
   }
 
+  async function handleLogoUploaded(url: string) {
+    const outcome = await onSave({ logo_url: url });
+    if (!outcome.ok) {
+      toast.error(`Could not save logo: ${outcome.message}`);
+      return;
+    }
+    toast.success("Logo updated.");
+  }
+
   async function confirmRemoveGuest() {
     if (!pendingRemove) return;
     const memberId = pendingRemove.id;
@@ -92,10 +102,22 @@ export default function VentureSettings({
             </button>
           )}
         </div>
-        <p className="mt-3 font-display text-base font-semibold">{venture.name}</p>
-        {venture.description && (
-          <p className="mt-1 text-sm text-fg-muted">{venture.description}</p>
-        )}
+        <div className="mt-3 flex items-center gap-3">
+          <LogoUpload
+            bucket="venture-logos"
+            path={venture.id}
+            currentUrl={venture.logo_url}
+            canEdit={canManage}
+            onUploaded={handleLogoUploaded}
+            fallbackInitial={venture.name.charAt(0).toUpperCase()}
+          />
+          <div>
+            <p className="font-display text-base font-semibold">{venture.name}</p>
+            {venture.description && (
+              <p className="mt-1 text-sm text-fg-muted">{venture.description}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="panel p-4">

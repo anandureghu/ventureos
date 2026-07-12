@@ -23,7 +23,6 @@ export default function NewVentureDialog({
   const [name, setName] = useState("");
   const [category, setCategory] = useState<VentureCategory>("dropshipping");
   const [description, setDescription] = useState("");
-  const [mode, setMode] = useState<"parallel" | "sequential">("parallel");
   const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
     null
   );
@@ -44,8 +43,7 @@ export default function NewVentureDialog({
         owner_id: userId,
         name: name.trim(),
         description: description.trim() || null,
-        category,
-        execution_mode: mode
+        category
       })
       .select("id")
       .single();
@@ -118,30 +116,6 @@ export default function NewVentureDialog({
             />
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm text-fg-muted">Execution mode</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["parallel", "sequential"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={`rounded-lg border px-3 py-2 text-sm capitalize ${
-                    mode === m
-                      ? "border-signal-violet bg-ink-700 text-fg"
-                      : "border-ink-500 text-fg-muted hover:bg-ink-700"
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1.5 text-xs text-fg-faint">
-              {mode === "parallel"
-                ? "Work multiple tracks at once — split them between you and your partner."
-                : "Move through stages one at a time; finish a stage before the next."}
-            </p>
-          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">

@@ -7,6 +7,10 @@ import KanbanBoard from "@/components/KanbanBoard";
 import FinancialsPanel from "@/components/FinancialsPanel";
 import KnowledgePanel from "@/components/KnowledgePanel";
 import VentureSettings from "@/components/VentureSettings";
+import StageChangeDialog, {
+  createStageChangeContent,
+  type ConfettiPiece
+} from "@/components/StageChangeDialog";
 import {
   LIFECYCLE_ORDER,
   STAGE_LABEL,
@@ -32,7 +36,6 @@ type Tab = "overview" | "pipeline" | "money" | "vault" | "settings";
 // managed by VentureSettings) saves immediately through its own button.
 const DRAFT_KEYS = [
   "state",
-  "execution_mode",
   "current_stage",
   "next_action",
   "score_profit",
@@ -76,6 +79,11 @@ export default function VentureWorkspace({
   const [draft, setDraft] = useState<Venture>(initialVenture);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
+  const [stageChange, setStageChange] = useState<{
+    direction: "forward" | "backward";
+    message: string;
+    confetti: ConfettiPiece[];
+  } | null>(null);
   const supabase = createClient();
   const toast = useToast();
 
@@ -92,6 +100,8 @@ export default function VentureWorkspace({
   async function saveDraft() {
     const diff = draftDiff(draft, venture);
     if (Object.keys(diff).length === 0) return;
+    const stageMoved =
+      "current_stage" in diff && diff.current_stage !== venture.current_stage;
     setSaving(true);
     const { error } = await supabase.from("ventures").update(diff).eq("id", venture.id);
     setSaving(false);
@@ -100,10 +110,17 @@ export default function VentureWorkspace({
       return;
     }
     setVenture((v) => ({ ...v, ...diff }));
-    toast.success("Venture updated.");
+    if (stageMoved && diff.current_stage) {
+      const fromIdx = LIFECYCLE_ORDER.indexOf(venture.current_stage);
+      const toIdx = LIFECYCLE_ORDER.indexOf(diff.current_stage);
+      const direction: "forward" | "backward" = toIdx > fromIdx ? "forward" : "backward";
+      setStageChange({ direction, ...createStageChangeContent(direction) });
+    } else {
+      toast.success("Venture updated.");
+    }
   }
 
-  // Used by VentureSettings for the name/description fields, which have
+  // Used by VentureSettings for the name/description/logo fields, which have
   // their own dialog form and show their own result dialog.
   async function saveFields(
     fields: Partial<Venture>
@@ -129,16 +146,34 @@ export default function VentureWorkspace({
     <div>
       <header className="mb-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="chip mb-2">{CATEGORY_LABEL[venture.category]}</p>
-            <h1 className="font-display text-2xl font-semibold tracking-tight">
-              {venture.name}
-            </h1>
-            {venture.description && (
-              <p className="mt-1 max-w-xl text-sm text-fg-muted">
-                {venture.description}
-              </p>
+          <div className="flex min-w-0 items-start gap-3">
+            {venture.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={venture.logo_url}
+                alt=""
+                className="mt-1 h-10 w-10 shrink-0 rounded-lg object-cover"
+              />
             )}
+            <div className="min-w-0">
+              <p className="chip mb-2">{CATEGORY_LABEL[venture.category]}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl font-semibold tracking-tight">
+                  {venture.name}
+                </h1>
+                <span
+                  className="chip"
+                  style={{ borderColor: STAGE_ACCENT[venture.current_stage] }}
+                >
+                  {STAGE_LABEL[venture.current_stage]}
+                </span>
+              </div>
+              {venture.description && (
+                <p className="mt-1 max-w-xl text-sm text-fg-muted">
+                  {venture.description}
+                </p>
+              )}
+            </div>
           </div>
           <div className="shrink-0 text-right">
             <p className="stat-num text-3xl font-semibold">{priorityScore(draft)}</p>
@@ -150,10 +185,6 @@ export default function VentureWorkspace({
           <StateSelect
             value={draft.state}
             onChange={(state) => setDraftField({ state })}
-          />
-          <ModeToggle
-            value={draft.execution_mode}
-            onChange={(execution_mode) => setDraftField({ execution_mode })}
           />
           <div className="ml-auto flex items-center gap-2">
             {dirty && <span className="chip text-signal-amber">Unsaved changes</span>}
@@ -232,6 +263,14 @@ export default function VentureWorkspace({
           onSave={saveFields}
         />
       )}
+
+      <StageChangeDialog
+        open={!!stageChange}
+        direction={stageChange?.direction ?? "forward"}
+        message={stageChange?.message ?? ""}
+        confetti={stageChange?.confetti ?? []}
+        onClose={() => setStageChange(null)}
+      />
     </div>
   );
 }
@@ -275,9 +314,7 @@ function Overview({
           })}
         </div>
         <p className="mt-3 text-xs text-fg-faint">
-          {draft.execution_mode === "sequential"
-            ? "Sequential mode — complete each stage before moving on."
-            : "Parallel mode — run several tracks at once on the Pipeline tab."}
+          Changes here are buffered — click &quot;Save changes&quot; above to apply them.
         </p>
       </div>
 
@@ -351,29 +388,5 @@ function StateSelect({
         <option value="archived">Archived</option>
       </select>
     </label>
-  );
-}
-
-function ModeToggle({
-  value,
-  onChange
-}: {
-  value: "sequential" | "parallel";
-  onChange: (v: "sequential" | "parallel") => void;
-}) {
-  return (
-    <div className="flex overflow-hidden rounded-lg border border-ink-500 text-xs">
-      {(["parallel", "sequential"] as const).map((m) => (
-        <button
-          key={m}
-          onClick={() => onChange(m)}
-          className={`px-2.5 py-1.5 capitalize ${
-            value === m ? "bg-ink-600 text-fg" : "text-fg-muted hover:bg-ink-700"
-          }`}
-        >
-          {m}
-        </button>
-      ))}
-    </div>
   );
 }

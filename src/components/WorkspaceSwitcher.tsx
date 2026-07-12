@@ -101,9 +101,18 @@ export default function WorkspaceSwitcher({
         className="flex w-full items-center gap-2 rounded-lg border border-ink-500 bg-ink-700 px-2.5 py-2 text-left transition-colors hover:bg-ink-600"
         disabled={busy}
       >
-        <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-signal-violet/20 font-mono text-xs font-semibold text-signal-violet">
-          {active.org.name.charAt(0).toUpperCase()}
-        </div>
+        {active.org.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={active.org.logo_url}
+            alt=""
+            className="h-7 w-7 shrink-0 rounded-md object-cover"
+          />
+        ) : (
+          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-signal-violet/20 font-mono text-xs font-semibold text-signal-violet">
+            {active.org.name.charAt(0).toUpperCase()}
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-fg">{active.org.name}</p>
           <p className="truncate text-[10px] text-fg-faint">
@@ -128,9 +137,18 @@ export default function WorkspaceSwitcher({
                   isActive ? "text-fg" : "text-fg-muted"
                 }`}
               >
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-ink-600 font-mono text-[10px]">
-                  {item.org.name.charAt(0).toUpperCase()}
-                </span>
+                {item.org.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.org.logo_url}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-md object-cover"
+                  />
+                ) : (
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-ink-600 font-mono text-[10px]">
+                    {item.org.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate">{item.org.name}</span>
                 {isActive && (
                   <span className="text-[10px] text-signal-violet">●</span>

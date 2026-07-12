@@ -33,6 +33,14 @@ function VentureRow({ venture, badge }: { venture: Venture; badge?: string }) {
         className="absolute inset-y-0 left-0 w-1"
         style={{ background: STAGE_ACCENT[venture.current_stage] }}
       />
+      {venture.logo_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={venture.logo_url}
+          alt=""
+          className="h-10 w-10 shrink-0 rounded-lg object-cover"
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate font-display text-base font-semibold">
@@ -46,8 +54,7 @@ function VentureRow({ venture, badge }: { venture: Venture; badge?: string }) {
           )}
         </div>
         <p className="mt-1 text-xs text-fg-muted">
-          {CATEGORY_LABEL[venture.category]} · {STAGE_LABEL[venture.current_stage]} ·{" "}
-          {venture.execution_mode}
+          {CATEGORY_LABEL[venture.category]} · {STAGE_LABEL[venture.current_stage]}
         </p>
         <div className="mt-2.5 h-1 w-full max-w-xs overflow-hidden rounded-full bg-ink-600">
           <span
@@ -68,7 +75,7 @@ function VentureRow({ venture, badge }: { venture: Venture; badge?: string }) {
 }
 
 export default async function VenturesPage() {
-  const { org, userId } = await getSession();
+  const { org, userId, orgs } = await getSession();
   const { workspace, shared } = await getPortfolioVentures(org.id, userId);
   const ventures = sortByPriority(workspace);
   const sharedVentures = sortByPriority(shared);
@@ -107,11 +114,16 @@ export default async function VenturesPage() {
 
           {sharedVentures.length > 0 && (
             <div>
-              <p className="eyebrow mb-3">Shared with you</p>
+              <p className="eyebrow mb-1">Shared with you</p>
+              <p className="mb-3 text-xs text-fg-faint">
+                You&apos;re part of {orgs.length} workspace{orgs.length === 1 ? "" : "s"}.
+              </p>
               <div className="space-y-3">
-                {sharedVentures.map((v) => (
-                  <VentureRow key={v.id} venture={v} badge="External" />
-                ))}
+                {sharedVentures.map((v) => {
+                  const memberOrg = orgs.find((o) => o.org.id === v.org_id);
+                  const badge = memberOrg ? memberOrg.org.name : "Guest access";
+                  return <VentureRow key={v.id} venture={v} badge={badge} />;
+                })}
               </div>
             </div>
           )}

@@ -13,6 +13,7 @@ export default async function WorkspaceGeneralPage() {
       <RenameWorkspace
         orgId={org.id}
         initialName={org.name}
+        initialLogoUrl={org.logo_url}
         canEdit={canEdit}
       />
 

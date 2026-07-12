@@ -6,24 +6,43 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
 import Dialog from "@/components/Dialog";
 import ResultDialog from "@/components/ResultDialog";
+import LogoUpload from "@/components/LogoUpload";
 
 export default function RenameWorkspace({
   orgId,
   initialName,
+  initialLogoUrl,
   canEdit
 }: {
   orgId: string;
   initialName: string;
+  initialLogoUrl: string | null;
   canEdit: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initialName);
+  const [logoUrl, setLogoUrl] = useState(initialLogoUrl);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
     null
   );
+
+  async function handleLogoUploaded(url: string) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("organizations")
+      .update({ logo_url: url })
+      .eq("id", orgId);
+    if (error) {
+      toast.error(`Could not save logo: ${error.message}`);
+      return;
+    }
+    setLogoUrl(url);
+    toast.success("Logo updated.");
+    router.refresh();
+  }
 
   function openDialog() {
     setName(initialName);
@@ -56,7 +75,17 @@ export default function RenameWorkspace({
     return (
       <div className="panel p-5">
         <p className="eyebrow mb-2">Workspace name</p>
-        <p className="text-sm">{initialName}</p>
+        <div className="flex items-center gap-3">
+          <LogoUpload
+            bucket="org-logos"
+            path={orgId}
+            currentUrl={logoUrl}
+            canEdit={false}
+            onUploaded={handleLogoUploaded}
+            fallbackInitial={initialName.charAt(0).toUpperCase()}
+          />
+          <p className="text-sm">{initialName}</p>
+        </div>
         <p className="mt-2 text-xs text-fg-faint">
           Only owners and admins can rename this workspace.
         </p>
@@ -67,9 +96,19 @@ export default function RenameWorkspace({
   return (
     <div className="panel p-5">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1">Workspace name</p>
-          <p className="text-sm">{initialName}</p>
+        <div className="flex items-center gap-3">
+          <LogoUpload
+            bucket="org-logos"
+            path={orgId}
+            currentUrl={logoUrl}
+            canEdit={canEdit}
+            onUploaded={handleLogoUploaded}
+            fallbackInitial={initialName.charAt(0).toUpperCase()}
+          />
+          <div>
+            <p className="eyebrow mb-1">Workspace name</p>
+            <p className="text-sm">{initialName}</p>
+          </div>
         </div>
         <button className="btn-ghost shrink-0" onClick={openDialog}>
           Rename

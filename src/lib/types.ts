@@ -17,7 +17,6 @@ export type LifecycleStage =
   | "growth"
   | "scale";
 export type VentureState = "active" | "paused" | "archived";
-export type ExecutionMode = "sequential" | "parallel";
 export type TaskStatus = "backlog" | "research" | "doing" | "waiting" | "completed";
 export type TaskPriority = "low" | "medium" | "high";
 export type TxnType = "expense" | "revenue";
@@ -37,6 +36,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string | null;
+  logo_url: string | null;
   created_by: string;
   created_at: string;
 }
@@ -72,7 +72,7 @@ export interface Venture {
   category: VentureCategory;
   current_stage: LifecycleStage;
   state: VentureState;
-  execution_mode: ExecutionMode;
+  logo_url: string | null;
   next_action: string | null;
   owner_id: string | null;
   score_profit: number;
