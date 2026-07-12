@@ -225,10 +225,15 @@ export default function VentureWorkspace({
         ))}
       </div>
 
-      {tab === "overview" && (
+      {/* Every tab stays mounted once visited — switching tabs only hides
+          them via CSS. Conditionally mounting/unmounting them here used to
+          throw away each panel's local state (e.g. after a delete) and
+          remount from the original server-fetched `initial` prop, making
+          deleted items reappear until a full page reload. */}
+      <div className={tab === "overview" ? "" : "hidden"}>
         <Overview draft={draft} onChange={setDraftField} />
-      )}
-      {tab === "pipeline" && (
+      </div>
+      <div className={tab === "pipeline" ? "" : "hidden"}>
         <KanbanBoard
           ventureId={venture.id}
           userId={userId}
@@ -236,8 +241,8 @@ export default function VentureWorkspace({
           initial={tasks}
           ventureStage={venture.current_stage}
         />
-      )}
-      {tab === "money" && (
+      </div>
+      <div className={tab === "money" ? "" : "hidden"}>
         <FinancialsPanel
           ventureId={venture.id}
           userId={userId}
@@ -245,16 +250,16 @@ export default function VentureWorkspace({
           ventureStage={venture.current_stage}
           initial={transactions}
         />
-      )}
-      {tab === "vault" && (
+      </div>
+      <div className={tab === "vault" ? "" : "hidden"}>
         <KnowledgePanel
           ventureId={venture.id}
           userId={userId}
           ventureStage={venture.current_stage}
           initial={notes}
         />
-      )}
-      {tab === "settings" && (
+      </div>
+      <div className={tab === "settings" ? "" : "hidden"}>
         <VentureSettings
           venture={venture}
           ventureMembers={ventureMembers}
@@ -262,7 +267,7 @@ export default function VentureWorkspace({
           canManage={canManage}
           onSave={saveFields}
         />
-      )}
+      </div>
 
       <StageChangeDialog
         open={!!stageChange}
