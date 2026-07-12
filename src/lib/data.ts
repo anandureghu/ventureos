@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_ORG_COOKIE } from "@/lib/workspace";
-import type { OrgMember, Organization, Profile } from "@/lib/types";
+import type { OrgMember, Organization, Profile, Venture, VentureMember } from "@/lib/types";
 
 export interface MyOrg {
   org: Organization;
@@ -119,4 +119,48 @@ export async function getMembers(orgId: string): Promise<OrgMember[]> {
     .select("id, org_id, user_id, role, profiles(*)")
     .eq("org_id", orgId);
   return (data ?? []) as unknown as OrgMember[];
+}
+
+export async function getVentureMembers(ventureId: string): Promise<VentureMember[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("venture_members")
+    .select("id, venture_id, user_id, role, profiles(*)")
+    .eq("venture_id", ventureId);
+  return (data ?? []) as unknown as VentureMember[];
+}
+
+export async function getPortfolioVentures(
+  orgId: string,
+  userId: string
+): Promise<{ workspace: Venture[]; shared: Venture[] }> {
+  const supabase = await createClient();
+
+  const { data: workspaceVentures } = await supabase
+    .from("ventures")
+    .select("*")
+    .eq("org_id", orgId);
+
+  const { data: membershipRows } = await supabase
+    .from("venture_members")
+    .select("venture_id, ventures(*)")
+    .eq("user_id", userId);
+
+  const workspace = (workspaceVentures ?? []) as Venture[];
+  const workspaceIds = new Set(workspace.map((v) => v.id));
+  const shared: Venture[] = [];
+
+  for (const row of membershipRows ?? []) {
+    const ventureData = row.ventures as Venture | Venture[] | null;
+    const venture = Array.isArray(ventureData) ? ventureData[0] : ventureData;
+    if (
+      venture &&
+      venture.org_id !== orgId &&
+      !workspaceIds.has(venture.id)
+    ) {
+      shared.push(venture);
+    }
+  }
+
+  return { workspace, shared };
 }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import KanbanBoard from "@/components/KanbanBoard";
 import FinancialsPanel from "@/components/FinancialsPanel";
 import KnowledgePanel from "@/components/KnowledgePanel";
+import VentureSettings from "@/components/VentureSettings";
 import {
   LIFECYCLE_ORDER,
   STAGE_LABEL,
@@ -20,10 +21,11 @@ import type {
   Task,
   Transaction,
   Venture,
+  VentureMember,
   VentureState
 } from "@/lib/types";
 
-type Tab = "overview" | "pipeline" | "money" | "vault";
+type Tab = "overview" | "pipeline" | "money" | "vault" | "settings";
 
 export default function VentureWorkspace({
   initialVenture,
@@ -31,6 +33,8 @@ export default function VentureWorkspace({
   transactions,
   notes,
   members,
+  ventureMembers,
+  canManage,
   userId
 }: {
   initialVenture: Venture;
@@ -38,6 +42,8 @@ export default function VentureWorkspace({
   transactions: Transaction[];
   notes: Note[];
   members: OrgMember[];
+  ventureMembers: VentureMember[];
+  canManage: boolean;
   userId: string;
 }) {
   const [venture, setVenture] = useState<Venture>(initialVenture);
@@ -53,7 +59,8 @@ export default function VentureWorkspace({
     { key: "overview", label: "Overview" },
     { key: "pipeline", label: "Pipeline" },
     { key: "money", label: "Financials" },
-    { key: "vault", label: "Knowledge" }
+    { key: "vault", label: "Knowledge" },
+    { key: "settings", label: "Settings" }
   ];
 
   return (
@@ -126,6 +133,15 @@ export default function VentureWorkspace({
       )}
       {tab === "vault" && (
         <KnowledgePanel ventureId={venture.id} userId={userId} initial={notes} />
+      )}
+      {tab === "settings" && (
+        <VentureSettings
+          venture={venture}
+          ventureMembers={ventureMembers}
+          orgMembers={members}
+          canManage={canManage}
+          onPatch={patch}
+        />
       )}
     </div>
   );

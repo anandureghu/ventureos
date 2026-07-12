@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getSession, getMembers } from "@/lib/data";
+import { getSession, getMembers, getVentureMembers } from "@/lib/data";
 import VentureWorkspace from "@/components/VentureWorkspace";
 import type { Note, Task, Transaction, Venture } from "@/lib/types";
 
@@ -13,7 +13,7 @@ export default async function VenturePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { org, userId } = await getSession();
+  const { org, userId, role } = await getSession();
   const supabase = await createClient();
 
   const { data: venture } = await supabase
@@ -22,9 +22,9 @@ export default async function VenturePage({
     .eq("id", id)
     .single();
 
-  if (!venture || venture.org_id !== org.id) notFound();
+  if (!venture) notFound();
 
-  const [{ data: tasks }, { data: txns }, { data: notes }, members] =
+  const [{ data: tasks }, { data: txns }, { data: notes }, members, ventureMembers] =
     await Promise.all([
       supabase
         .from("tasks")
@@ -41,8 +41,11 @@ export default async function VenturePage({
         .select("*")
         .eq("venture_id", id)
         .order("created_at", { ascending: false }),
-      getMembers(org.id)
+      getMembers(org.id),
+      getVentureMembers(id)
     ]);
+
+  const canManage = role === "owner" || role === "admin";
 
   return (
     <div>
@@ -58,6 +61,8 @@ export default async function VenturePage({
         transactions={(txns ?? []) as Transaction[]}
         notes={(notes ?? []) as Note[]}
         members={members}
+        ventureMembers={ventureMembers}
+        canManage={canManage}
         userId={userId}
       />
     </div>

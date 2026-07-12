@@ -1,4 +1,5 @@
 export type MemberRole = "owner" | "admin" | "member";
+export type VentureMemberRole = "lead" | "member";
 export type VentureCategory =
   | "dropshipping"
   | "printing_3d"
@@ -42,6 +43,14 @@ export interface OrgMember {
   org_id: string;
   user_id: string;
   role: MemberRole;
+  profiles?: Profile;
+}
+
+export interface VentureMember {
+  id: string;
+  venture_id: string;
+  user_id: string;
+  role: VentureMemberRole;
   profiles?: Profile;
 }
 
