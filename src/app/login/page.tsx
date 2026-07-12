@@ -11,9 +11,8 @@ export default async function LoginPage({
     <main className="relative flex min-h-screen items-center justify-center px-5 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-signal-violet font-display text-lg font-bold text-white">
-            V
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="VentureOS" className="h-9 w-9 object-contain" />
           <span className="font-display text-lg font-semibold tracking-tight">
             VentureOS
           </span>

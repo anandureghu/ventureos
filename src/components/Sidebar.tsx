@@ -30,9 +30,8 @@ export default function Sidebar({
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-ink-500 bg-ink-800 px-3 py-5">
       <div className="flex items-center gap-2.5 px-2">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-signal-violet font-display text-base font-bold text-white">
-          V
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="VentureOS" className="h-8 w-8 object-contain" />
         <div className="min-w-0">
           <p className="font-display text-sm font-semibold leading-none">VentureOS</p>
           <p className="mt-1 truncate text-[11px] text-fg-faint">Portfolio OS</p>
