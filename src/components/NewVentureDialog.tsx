@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
+import Dialog from "@/components/Dialog";
+import ResultDialog from "@/components/ResultDialog";
 import { CATEGORY_OPTIONS } from "@/lib/constants";
 import type { VentureCategory } from "@/lib/types";
 
@@ -22,6 +24,10 @@ export default function NewVentureDialog({
   const [category, setCategory] = useState<VentureCategory>("dropshipping");
   const [description, setDescription] = useState("");
   const [mode, setMode] = useState<"parallel" | "sequential">("parallel");
+  const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
+    null
+  );
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   async function create() {
     if (!name.trim()) {
@@ -46,15 +52,23 @@ export default function NewVentureDialog({
 
     setSaving(false);
     if (error) {
-      toast.error(`Could not create venture: ${error.message}`);
+      setResult({ variant: "error", message: `Could not create venture: ${error.message}` });
       return;
     }
     setOpen(false);
     setName("");
     setDescription("");
-    toast.success("Venture created.");
-    if (data?.id) router.push(`/ventures/${data.id}`);
-    router.refresh();
+    setCreatedId(data?.id ?? null);
+    setResult({ variant: "success", message: "Venture created." });
+  }
+
+  function handleResultClose() {
+    setResult(null);
+    if (createdId) {
+      router.push(`/ventures/${createdId}`);
+      router.refresh();
+      setCreatedId(null);
+    }
   }
 
   return (
@@ -63,96 +77,89 @@ export default function NewVentureDialog({
         + New venture
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="panel-raised w-full max-w-lg p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="eyebrow mb-1">New venture</p>
-            <h2 className="font-display text-xl font-semibold">Add a business idea</h2>
+      <Dialog open={open} onClose={() => setOpen(false)}>
+        <p className="eyebrow mb-1">New venture</p>
+        <h2 className="font-display text-xl font-semibold">Add a business idea</h2>
 
-            <div className="mt-5 space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">Name</label>
-                <input
-                  className="field"
-                  placeholder="e.g. Minimalist 3D-printed desk gear"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoFocus
-                />
-              </div>
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Name</label>
+            <input
+              className="field"
+              placeholder="e.g. Minimalist 3D-printed desk gear"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">Category</label>
-                <select
-                  className="field"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as VentureCategory)}
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Category</label>
+            <select
+              className="field"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as VentureCategory)}
+            >
+              {CATEGORY_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">One-line description</label>
+            <input
+              className="field"
+              placeholder="What is it, in a sentence?"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Execution mode</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["parallel", "sequential"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`rounded-lg border px-3 py-2 text-sm capitalize ${
+                    mode === m
+                      ? "border-signal-violet bg-ink-700 text-fg"
+                      : "border-ink-500 text-fg-muted hover:bg-ink-700"
+                  }`}
                 >
-                  {CATEGORY_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">
-                  One-line description
-                </label>
-                <input
-                  className="field"
-                  placeholder="What is it, in a sentence?"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">
-                  Execution mode
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["parallel", "sequential"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMode(m)}
-                      className={`rounded-lg border px-3 py-2 text-sm capitalize ${
-                        mode === m
-                          ? "border-signal-violet bg-ink-700 text-fg"
-                          : "border-ink-500 text-fg-muted hover:bg-ink-700"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-xs text-fg-faint">
-                  {mode === "parallel"
-                    ? "Work multiple tracks at once — split them between you and your partner."
-                    : "Move through stages one at a time; finish a stage before the next."}
-                </p>
-              </div>
+                  {m}
+                </button>
+              ))}
             </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button className="btn-ghost" onClick={() => setOpen(false)}>
-                Cancel
-              </button>
-              <button className="btn-primary" onClick={create} disabled={saving}>
-                {saving ? "Creating…" : "Create venture"}
-              </button>
-            </div>
+            <p className="mt-1.5 text-xs text-fg-faint">
+              {mode === "parallel"
+                ? "Work multiple tracks at once — split them between you and your partner."
+                : "Move through stages one at a time; finish a stage before the next."}
+            </p>
           </div>
         </div>
-      )}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={create} disabled={saving}>
+            {saving ? "Creating…" : "Create venture"}
+          </button>
+        </div>
+      </Dialog>
+
+      <ResultDialog
+        open={!!result}
+        variant={result?.variant ?? "success"}
+        message={result?.message ?? ""}
+        onClose={handleResultClose}
+      />
     </>
   );
 }

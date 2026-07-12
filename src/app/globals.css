@@ -90,6 +90,35 @@
   animation: success-check-draw 0.35s ease-out 0.4s forwards;
 }
 
+/* error result dialog */
+@keyframes error-pop-in {
+  0%, 40% { transform: translateX(0) scale(0.9); opacity: 0; }
+  50% { transform: translateX(-6px) scale(1); opacity: 1; }
+  65% { transform: translateX(5px); }
+  80% { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
+}
+@keyframes error-circle-draw {
+  from { stroke-dasharray: 151; stroke-dashoffset: 151; }
+  to { stroke-dasharray: 151; stroke-dashoffset: 0; }
+}
+@keyframes error-mark-draw {
+  from { stroke-dasharray: 23; stroke-dashoffset: 23; }
+  to { stroke-dasharray: 23; stroke-dashoffset: 0; }
+}
+.error-pop {
+  animation: error-pop-in 0.4s ease-out;
+}
+.error-check-circle {
+  animation: error-circle-draw 0.5s ease-out forwards;
+}
+.error-mark-1,
+.error-mark-2 {
+  stroke-dasharray: 23;
+  stroke-dashoffset: 23;
+  animation: error-mark-draw 0.25s ease-out 0.4s forwards;
+}
+
 /* slim scrollbars for the kanban */
 .scroll-x::-webkit-scrollbar { height: 8px; }
 .scroll-x::-webkit-scrollbar-thumb { background: theme("colors.ink.500"); border-radius: 8px; }

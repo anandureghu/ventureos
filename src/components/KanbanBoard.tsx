@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
 import TagInput from "@/components/TagInput";
 import FilterBar from "@/components/FilterBar";
+import Dialog from "@/components/Dialog";
+import ResultDialog from "@/components/ResultDialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { KANBAN_COLUMNS } from "@/lib/constants";
 import { initials } from "@/lib/format";
 import type { LifecycleStage, OrgMember, Task, TaskStatus } from "@/lib/types";
@@ -25,11 +28,18 @@ export default function KanbanBoard({
   ventureStage: LifecycleStage;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initial);
+  const [addOpen, setAddOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [track, setTrack] = useState("");
   const [draftTags, setDraftTags] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "">("");
   const [tagFilter, setTagFilter] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
+    null
+  );
   const supabase = createClient();
   const toast = useToast();
 
@@ -58,48 +68,31 @@ export default function KanbanBoard({
       toast.warning("Enter a task title first.");
       return;
     }
-    const optimistic: Task = {
-      id: `tmp-${Date.now()}`,
-      venture_id: ventureId,
-      title: draft.trim(),
-      description: null,
-      status: "backlog",
-      stage: ventureStage,
-      track: track.trim() || null,
-      priority: "medium",
-      assignee_id: null,
-      blocked_by: null,
-      due_date: null,
-      position: 0,
-      created_by: userId,
-      completed_at: null,
-      tags: draftTags
-    };
-    setTasks((t) => [optimistic, ...t]);
-    setDraft("");
-    setTrack("");
-    setDraftTags([]);
-
+    setSaving(true);
     const { data, error } = await supabase
       .from("tasks")
       .insert({
         venture_id: ventureId,
         created_by: userId,
-        title: optimistic.title,
-        track: optimistic.track,
+        title: draft.trim(),
+        track: track.trim() || null,
         stage: ventureStage,
-        tags: optimistic.tags
+        tags: draftTags
       })
       .select("*")
       .single();
 
+    setSaving(false);
     if (error) {
-      setTasks((t) => t.filter((x) => x.id !== optimistic.id));
-      toast.error(`Could not add task: ${error.message}`);
-    } else if (data) {
-      setTasks((t) => t.map((x) => (x.id === optimistic.id ? (data as Task) : x)));
-      toast.success("Task added.");
+      setResult({ variant: "error", message: `Could not add task: ${error.message}` });
+      return;
     }
+    if (data) setTasks((t) => [data as Task, ...t]);
+    setDraft("");
+    setTrack("");
+    setDraftTags([]);
+    setAddOpen(false);
+    setResult({ variant: "success", message: "Task added." });
   }
 
   async function move(task: Task, dir: -1 | 1) {
@@ -149,47 +142,36 @@ export default function KanbanBoard({
     }
   }
 
-  async function remove(task: Task) {
+  async function confirmDelete() {
+    const task = pendingDelete;
+    if (!task) return;
+    setDeleting(true);
     setTasks((t) => t.filter((x) => x.id !== task.id));
     const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    setDeleting(false);
+    setPendingDelete(null);
     if (error) {
       setTasks((t) => [...t, task]);
-      toast.error(`Could not delete task: ${error.message}`);
+      setResult({ variant: "error", message: `Could not delete task: ${error.message}` });
+      return;
     }
+    setResult({ variant: "success", message: "Task deleted." });
   }
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <input
-          className="field flex-1 min-w-[200px]"
-          placeholder="Add a task…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addTask()}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <FilterBar
+          stage={stageFilter}
+          onStageChange={setStageFilter}
+          tag={tagFilter}
+          onTagChange={setTagFilter}
+          tagOptions={tagOptions}
         />
-        <input
-          className="field w-44"
-          placeholder="Track (optional)"
-          value={track}
-          onChange={(e) => setTrack(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addTask()}
-        />
-        <button className="btn-primary" onClick={addTask}>
-          Add
+        <button className="btn-primary shrink-0" onClick={() => setAddOpen(true)}>
+          + Add task
         </button>
       </div>
-      <div className="mb-4 max-w-md">
-        <TagInput ventureId={ventureId} value={draftTags} onChange={setDraftTags} />
-      </div>
-
-      <FilterBar
-        stage={stageFilter}
-        onStageChange={setStageFilter}
-        tag={tagFilter}
-        onTagChange={setTagFilter}
-        tagOptions={tagOptions}
-      />
 
       <div className="scroll-x flex gap-3 overflow-x-auto pb-2">
         {KANBAN_COLUMNS.map((col) => {
@@ -211,7 +193,7 @@ export default function KanbanBoard({
                     members={members}
                     onMove={move}
                     onAssign={assign}
-                    onRemove={remove}
+                    onRemove={setPendingDelete}
                     onRetag={retag}
                   />
                 ))}
@@ -225,6 +207,62 @@ export default function KanbanBoard({
           );
         })}
       </div>
+
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)}>
+        <p className="eyebrow mb-1">Pipeline</p>
+        <h2 className="font-display text-xl font-semibold">Add a task</h2>
+
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Title</label>
+            <input
+              className="field"
+              placeholder="What needs to happen?"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Track (optional)</label>
+            <input
+              className="field"
+              placeholder="e.g. Supplier research"
+              value={track}
+              onChange={(e) => setTrack(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Tags</label>
+            <TagInput ventureId={ventureId} value={draftTags} onChange={setDraftTags} />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setAddOpen(false)}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={addTask} disabled={saving}>
+            {saving ? "Adding…" : "Add task"}
+          </button>
+        </div>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        message={`Delete "${pendingDelete?.title}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+
+      <ResultDialog
+        open={!!result}
+        variant={result?.variant ?? "success"}
+        message={result?.message ?? ""}
+        onClose={() => setResult(null)}
+      />
     </div>
   );
 }

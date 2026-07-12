@@ -104,17 +104,17 @@ export default function VentureWorkspace({
   }
 
   // Used by VentureSettings for the name/description fields, which have
-  // their own explicit "Save details" button and save immediately.
-  async function saveFields(fields: Partial<Venture>): Promise<boolean> {
+  // their own dialog form and show their own result dialog.
+  async function saveFields(
+    fields: Partial<Venture>
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
     const { error } = await supabase.from("ventures").update(fields).eq("id", venture.id);
     if (error) {
-      toast.error(error.message);
-      return false;
+      return { ok: false, message: error.message };
     }
     setVenture((v) => ({ ...v, ...fields }));
     setDraft((d) => ({ ...d, ...fields }));
-    toast.success("Venture updated.");
-    return true;
+    return { ok: true };
   }
 
   const tabs: { key: Tab; label: string }[] = [

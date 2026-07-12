@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
 import TagInput from "@/components/TagInput";
 import FilterBar from "@/components/FilterBar";
+import Dialog from "@/components/Dialog";
+import ResultDialog from "@/components/ResultDialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { formatDate } from "@/lib/format";
 import { STAGE_LABEL } from "@/lib/constants";
 import type { LifecycleStage, Note, NoteType } from "@/lib/types";
@@ -29,13 +32,20 @@ export default function KnowledgePanel({
   initial: Note[];
 }) {
   const [notes, setNotes] = useState<Note[]>(initial);
+  const [addOpen, setAddOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [url, setUrl] = useState("");
   const [type, setType] = useState<NoteType>("note");
   const [draftTags, setDraftTags] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "">("");
   const [tagFilter, setTagFilter] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Note | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
+    null
+  );
   const supabase = createClient();
   const toast = useToast();
 
@@ -58,6 +68,7 @@ export default function KnowledgePanel({
       toast.warning("Give the note a title first.");
       return;
     }
+    setSaving(true);
     const { data, error } = await supabase
       .from("notes")
       .insert({
@@ -72,8 +83,9 @@ export default function KnowledgePanel({
       })
       .select("*")
       .single();
+    setSaving(false);
     if (error) {
-      toast.error(`Could not save note: ${error.message}`);
+      setResult({ variant: "error", message: `Could not save note: ${error.message}` });
       return;
     }
     if (data) setNotes((n) => [data as Note, ...n]);
@@ -81,17 +93,24 @@ export default function KnowledgePanel({
     setContent("");
     setUrl("");
     setDraftTags([]);
-    toast.success("Note saved.");
+    setAddOpen(false);
+    setResult({ variant: "success", message: "Note saved." });
   }
 
-  async function remove(id: string) {
-    const removed = notes.find((x) => x.id === id);
-    setNotes((n) => n.filter((x) => x.id !== id));
-    const { error } = await supabase.from("notes").delete().eq("id", id);
-    if (error && removed) {
-      setNotes((n) => [removed, ...n]);
-      toast.error(`Could not delete note: ${error.message}`);
+  async function confirmDelete() {
+    const note = pendingDelete;
+    if (!note) return;
+    setDeleting(true);
+    setNotes((n) => n.filter((x) => x.id !== note.id));
+    const { error } = await supabase.from("notes").delete().eq("id", note.id);
+    setDeleting(false);
+    setPendingDelete(null);
+    if (error) {
+      setNotes((n) => [note, ...n]);
+      setResult({ variant: "error", message: `Could not delete note: ${error.message}` });
+      return;
     }
+    setResult({ variant: "success", message: "Note deleted." });
   }
 
   async function retag(note: Note, tags: string[]) {
@@ -106,49 +125,7 @@ export default function KnowledgePanel({
 
   return (
     <div>
-      <div className="panel p-4">
-        <div className="flex flex-wrap gap-2">
-          <input
-            className="field flex-1 min-w-[200px]"
-            placeholder="Title — supplier name, competitor, finding…"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <select
-            className="field w-36"
-            value={type}
-            onChange={(e) => setType(e.target.value as NoteType)}
-          >
-            {NOTE_TYPES.map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <textarea
-          className="field mt-2 min-h-[70px]"
-          placeholder="Details, notes, paste anything worth keeping…"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
-        <div className="mt-2 flex flex-wrap gap-2">
-          <input
-            className="field flex-1 min-w-[200px]"
-            placeholder="Link (optional)"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button className="btn-primary" onClick={add}>
-            Save to vault
-          </button>
-        </div>
-        <div className="mt-2">
-          <TagInput ventureId={ventureId} value={draftTags} onChange={setDraftTags} />
-        </div>
-      </div>
-
-      <div className="mt-4">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <FilterBar
           stage={stageFilter}
           onStageChange={setStageFilter}
@@ -156,6 +133,9 @@ export default function KnowledgePanel({
           onTagChange={setTagFilter}
           tagOptions={tagOptions}
         />
+        <button className="btn-primary shrink-0" onClick={() => setAddOpen(true)}>
+          + Add note
+        </button>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -167,9 +147,84 @@ export default function KnowledgePanel({
           </p>
         )}
         {visibleNotes.map((n) => (
-          <NoteCard key={n.id} ventureId={ventureId} note={n} onRemove={remove} onRetag={retag} />
+          <NoteCard
+            key={n.id}
+            ventureId={ventureId}
+            note={n}
+            onRemove={setPendingDelete}
+            onRetag={retag}
+          />
         ))}
       </div>
+
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)}>
+        <p className="eyebrow mb-1">Knowledge vault</p>
+        <h2 className="font-display text-xl font-semibold">Add a note</h2>
+
+        <div className="mt-5 space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="field flex-1 min-w-[200px]"
+              placeholder="Title — supplier name, competitor, finding…"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+            />
+            <select
+              className="field w-36"
+              value={type}
+              onChange={(e) => setType(e.target.value as NoteType)}
+            >
+              {NOTE_TYPES.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            className="field min-h-[70px]"
+            placeholder="Details, notes, paste anything worth keeping…"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
+          <input
+            className="field"
+            placeholder="Link (optional)"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Tags</label>
+            <TagInput ventureId={ventureId} value={draftTags} onChange={setDraftTags} />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setAddOpen(false)}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={add} disabled={saving}>
+            {saving ? "Saving…" : "Save to vault"}
+          </button>
+        </div>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        message={`Delete "${pendingDelete?.title}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+
+      <ResultDialog
+        open={!!result}
+        variant={result?.variant ?? "success"}
+        message={result?.message ?? ""}
+        onClose={() => setResult(null)}
+      />
     </div>
   );
 }
@@ -182,7 +237,7 @@ function NoteCard({
 }: {
   ventureId: string;
   note: Note;
-  onRemove: (id: string) => void;
+  onRemove: (note: Note) => void;
   onRetag: (n: Note, tags: string[]) => void;
 }) {
   const [tagging, setTagging] = useState(false);
@@ -193,7 +248,7 @@ function NoteCard({
         <p className="chip">{note.type}</p>
         <button
           className="text-xs text-fg-faint opacity-0 transition-opacity hover:text-signal-red group-hover:opacity-100"
-          onClick={() => onRemove(note.id)}
+          onClick={() => onRemove(note)}
         >
           ✕
         </button>

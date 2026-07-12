@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useToast } from "@/components/ToastProvider";
 import AddTransactionDialog from "@/components/AddTransactionDialog";
 import FilterBar from "@/components/FilterBar";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import ResultDialog from "@/components/ResultDialog";
 import { formatMoney, formatDate } from "@/lib/format";
 import {
   STAGE_LABEL,
@@ -30,8 +31,12 @@ export default function FinancialsPanel({
   const [txns, setTxns] = useState<Transaction[]>(initial);
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "">("");
   const [tagFilter, setTagFilter] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
+    null
+  );
   const supabase = createClient();
-  const toast = useToast();
 
   function nameFor(id: string | null) {
     if (!id) return null;
@@ -67,14 +72,20 @@ export default function FinancialsPanel({
     setTxns((t) => [txn, ...t]);
   }
 
-  async function remove(id: string) {
-    const removed = txns.find((x) => x.id === id);
-    setTxns((t) => t.filter((x) => x.id !== id));
-    const { error } = await supabase.from("transactions").delete().eq("id", id);
-    if (error && removed) {
-      setTxns((t) => [removed, ...t]);
-      toast.error(`Could not delete transaction: ${error.message}`);
+  async function confirmDelete() {
+    const txn = pendingDelete;
+    if (!txn) return;
+    setDeleting(true);
+    setTxns((t) => t.filter((x) => x.id !== txn.id));
+    const { error } = await supabase.from("transactions").delete().eq("id", txn.id);
+    setDeleting(false);
+    setPendingDelete(null);
+    if (error) {
+      setTxns((t) => [txn, ...t]);
+      setResult({ variant: "error", message: `Could not delete transaction: ${error.message}` });
+      return;
     }
+    setResult({ variant: "success", message: "Transaction deleted." });
   }
 
   const net = revenue - invested;
@@ -161,7 +172,7 @@ export default function FinancialsPanel({
                   </span>
                   <button
                     className="text-xs text-fg-faint opacity-0 transition-opacity hover:text-signal-red group-hover:opacity-100"
-                    onClick={() => remove(t.id)}
+                    onClick={() => setPendingDelete(t)}
                   >
                     ✕
                   </button>
@@ -201,6 +212,24 @@ export default function FinancialsPanel({
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        message={`Delete "${
+          pendingDelete?.purpose ?? pendingDelete?.description ?? "this transaction"
+        }"? This cannot be undone.`}
+        confirmLabel="Delete"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+
+      <ResultDialog
+        open={!!result}
+        variant={result?.variant ?? "success"}
+        message={result?.message ?? ""}
+        onClose={() => setResult(null)}
+      />
     </div>
   );
 }

@@ -4,14 +4,20 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
+import Dialog from "@/components/Dialog";
+import ResultDialog from "@/components/ResultDialog";
 import type { MemberRole } from "@/lib/types";
 
 export default function InviteMember({ orgId }: { orgId: string }) {
   const router = useRouter();
   const toast = useToast();
+  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("member");
   const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
+    null
+  );
 
   async function invite() {
     if (!email.trim()) {
@@ -27,42 +33,76 @@ export default function InviteMember({ orgId }: { orgId: string }) {
     });
     setBusy(false);
     if (error) {
-      toast.error(error.message);
+      setResult({ variant: "error", message: error.message });
       return;
     }
-    toast.success(`${email.trim()} now has access.`);
+    const invited = email.trim();
     setEmail("");
+    setOpen(false);
+    setResult({ variant: "success", message: `${invited} now has access.` });
     router.refresh();
   }
 
   return (
     <div className="panel p-5">
-      <p className="eyebrow mb-3">Invite to this workspace</p>
-      <div className="flex flex-wrap gap-2">
-        <input
-          className="field flex-1 min-w-[220px]"
-          type="email"
-          placeholder="partner@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <select
-          className="field w-32"
-          value={role}
-          onChange={(e) => setRole(e.target.value as MemberRole)}
-        >
-          <option value="member">Member</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button className="btn-primary" onClick={invite} disabled={busy}>
-          {busy ? "Adding…" : "Add"}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="eyebrow mb-1">Invite to this workspace</p>
+          <p className="text-xs text-fg-faint">
+            They must sign in with Google once first, then can switch to this
+            workspace from the sidebar.
+          </p>
+        </div>
+        <button className="btn-primary shrink-0" onClick={() => setOpen(true)}>
+          + Invite member
         </button>
       </div>
-      <p className="mt-2 text-xs text-fg-faint">
-        They must sign in with Google once first. After joining, they can switch to
-        this workspace from the sidebar — they only see ventures in workspaces they
-        belong to.
-      </p>
+
+      <Dialog open={open} onClose={() => setOpen(false)}>
+        <p className="eyebrow mb-1">Invite to this workspace</p>
+        <h2 className="font-display text-xl font-semibold">Add a team member</h2>
+
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Email</label>
+            <input
+              className="field"
+              type="email"
+              placeholder="partner@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Role</label>
+            <select
+              className="field"
+              value={role}
+              onChange={(e) => setRole(e.target.value as MemberRole)}
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={invite} disabled={busy}>
+            {busy ? "Adding…" : "Add member"}
+          </button>
+        </div>
+      </Dialog>
+
+      <ResultDialog
+        open={!!result}
+        variant={result?.variant ?? "success"}
+        message={result?.message ?? ""}
+        onClose={() => setResult(null)}
+      />
     </div>
   );
 }

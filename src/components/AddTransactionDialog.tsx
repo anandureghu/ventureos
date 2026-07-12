@@ -4,7 +4,8 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
 import TagInput from "@/components/TagInput";
-import SuccessDialog from "@/components/SuccessDialog";
+import Dialog from "@/components/Dialog";
+import ResultDialog from "@/components/ResultDialog";
 import { FUND_SOURCE_LABEL, SETTLEMENT_LABEL, REIMBURSEMENT_LABEL } from "@/lib/constants";
 import type {
   LifecycleStage,
@@ -31,7 +32,9 @@ export default function AddTransactionDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
+    null
+  );
   const [saving, setSaving] = useState(false);
 
   const [type, setType] = useState<TxnType>("expense");
@@ -87,13 +90,13 @@ export default function AddTransactionDialog({
 
     setSaving(false);
     if (error) {
-      toast.error(`Could not save: ${error.message}`);
+      setResult({ variant: "error", message: `Could not save: ${error.message}` });
       return;
     }
     if (data) onCreated(data as Transaction);
     reset();
     setOpen(false);
-    setShowSuccess(true);
+    setResult({ variant: "success", message: "Transaction recorded." });
   }
 
   return (
@@ -102,167 +105,156 @@ export default function AddTransactionDialog({
         + Add transaction
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="panel-raised w-full max-w-lg p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="eyebrow mb-1">New transaction</p>
-            <h2 className="font-display text-xl font-semibold">Record money in or out</h2>
+      <Dialog open={open} onClose={() => setOpen(false)}>
+        <p className="eyebrow mb-1">New transaction</p>
+        <h2 className="font-display text-xl font-semibold">Record money in or out</h2>
 
-            <div className="mt-5 space-y-4">
-              <div className="flex overflow-hidden rounded-lg border border-ink-500">
-                {(["expense", "revenue"] as const).map((t) => (
+        <div className="mt-5 space-y-4">
+          <div className="flex overflow-hidden rounded-lg border border-ink-500">
+            {(["expense", "revenue"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className={`flex-1 px-3 py-2 text-sm capitalize ${
+                  type === t
+                    ? t === "expense"
+                      ? "bg-signal-red/20 text-signal-red"
+                      : "bg-signal-green/20 text-signal-green"
+                    : "text-fg-muted"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Amount</label>
+            <input
+              className="field"
+              type="number"
+              min="0"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Purpose</label>
+            <input
+              className="field"
+              placeholder="e.g. Facebook ads, supplier payment, client invoice"
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Fund source</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["company", "person"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFundSource(f)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    fundSource === f
+                      ? "border-signal-violet bg-ink-700 text-fg"
+                      : "border-ink-500 text-fg-muted hover:bg-ink-700"
+                  }`}
+                >
+                  {FUND_SOURCE_LABEL[f]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">
+              {type === "expense" ? "Who spent it" : "Who received it"}
+            </label>
+            <select
+              className="field"
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+            >
+              <option value="">Unassigned</option>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.profiles?.full_name ?? m.profiles?.email ?? "Member"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Settlement status</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["pending", "completed"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSettlementStatus(s)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    settlementStatus === s
+                      ? "border-signal-violet bg-ink-700 text-fg"
+                      : "border-ink-500 text-fg-muted hover:bg-ink-700"
+                  }`}
+                >
+                  {SETTLEMENT_LABEL[type][s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {fundSource === "person" && (
+            <div>
+              <label className="mb-1.5 block text-sm text-fg-muted">
+                Reimbursed the person yet?
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["pending", "resolved"] as const).map((s) => (
                   <button
-                    key={t}
+                    key={s}
                     type="button"
-                    onClick={() => setType(t)}
-                    className={`flex-1 px-3 py-2 text-sm capitalize ${
-                      type === t
-                        ? t === "expense"
-                          ? "bg-signal-red/20 text-signal-red"
-                          : "bg-signal-green/20 text-signal-green"
-                        : "text-fg-muted"
+                    onClick={() => setReimbursementStatus(s)}
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      reimbursementStatus === s
+                        ? "border-signal-violet bg-ink-700 text-fg"
+                        : "border-ink-500 text-fg-muted hover:bg-ink-700"
                     }`}
                   >
-                    {t}
+                    {REIMBURSEMENT_LABEL[s]}
                   </button>
                 ))}
               </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">Amount</label>
-                <input
-                  className="field"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">Purpose</label>
-                <input
-                  className="field"
-                  placeholder="e.g. Facebook ads, supplier payment, client invoice"
-                  value={purpose}
-                  onChange={(e) => setPurpose(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">Fund source</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["company", "person"] as const).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFundSource(f)}
-                      className={`rounded-lg border px-3 py-2 text-sm ${
-                        fundSource === f
-                          ? "border-signal-violet bg-ink-700 text-fg"
-                          : "border-ink-500 text-fg-muted hover:bg-ink-700"
-                      }`}
-                    >
-                      {FUND_SOURCE_LABEL[f]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">
-                  {type === "expense" ? "Who spent it" : "Who received it"}
-                </label>
-                <select
-                  className="field"
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m.user_id} value={m.user_id}>
-                      {m.profiles?.full_name ?? m.profiles?.email ?? "Member"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">
-                  Settlement status
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["pending", "completed"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSettlementStatus(s)}
-                      className={`rounded-lg border px-3 py-2 text-sm ${
-                        settlementStatus === s
-                          ? "border-signal-violet bg-ink-700 text-fg"
-                          : "border-ink-500 text-fg-muted hover:bg-ink-700"
-                      }`}
-                    >
-                      {SETTLEMENT_LABEL[type][s]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {fundSource === "person" && (
-                <div>
-                  <label className="mb-1.5 block text-sm text-fg-muted">
-                    Reimbursed the person yet?
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["pending", "resolved"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setReimbursementStatus(s)}
-                        className={`rounded-lg border px-3 py-2 text-sm ${
-                          reimbursementStatus === s
-                            ? "border-signal-violet bg-ink-700 text-fg"
-                            : "border-ink-500 text-fg-muted hover:bg-ink-700"
-                        }`}
-                      >
-                        {REIMBURSEMENT_LABEL[s]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="mb-1.5 block text-sm text-fg-muted">Tags</label>
-                <TagInput ventureId={ventureId} value={tags} onChange={setTags} />
-              </div>
             </div>
+          )}
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button className="btn-ghost" onClick={() => setOpen(false)}>
-                Cancel
-              </button>
-              <button className="btn-primary" onClick={create} disabled={saving}>
-                {saving ? "Saving…" : "Record transaction"}
-              </button>
-            </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Tags</label>
+            <TagInput ventureId={ventureId} value={tags} onChange={setTags} />
           </div>
         </div>
-      )}
 
-      <SuccessDialog
-        open={showSuccess}
-        message="Transaction recorded."
-        onClose={() => setShowSuccess(false)}
+        <div className="mt-6 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={create} disabled={saving}>
+            {saving ? "Saving…" : "Record transaction"}
+          </button>
+        </div>
+      </Dialog>
+
+      <ResultDialog
+        open={!!result}
+        variant={result?.variant ?? "success"}
+        message={result?.message ?? ""}
+        onClose={() => setResult(null)}
       />
     </>
   );
