@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
 import KanbanBoard from "@/components/KanbanBoard";
 import FinancialsPanel from "@/components/FinancialsPanel";
+import SuppliersPanel from "@/components/SuppliersPanel";
 import KnowledgePanel from "@/components/KnowledgePanel";
 import VentureSettings from "@/components/VentureSettings";
 import StageChangeDialog, {
@@ -31,7 +32,7 @@ import type {
   VentureState
 } from "@/lib/types";
 
-type Tab = "overview" | "pipeline" | "money" | "vault" | "settings";
+type Tab = "overview" | "pipeline" | "money" | "suppliers" | "vault" | "settings";
 
 // Fields editable via the buffered draft — everything else (name/description,
 // managed by VentureSettings) saves immediately through its own button.
@@ -80,6 +81,7 @@ export default function VentureWorkspace({
 }) {
   const [venture, setVenture] = useState<Venture>(initialVenture);
   const [draft, setDraft] = useState<Venture>(initialVenture);
+  const [supplierList, setSupplierList] = useState<Supplier[]>(suppliers);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
   const [stageChange, setStageChange] = useState<{
@@ -141,6 +143,7 @@ export default function VentureWorkspace({
     { key: "overview", label: "Overview" },
     { key: "pipeline", label: "Pipeline" },
     { key: "money", label: "Financials" },
+    { key: "suppliers", label: "Suppliers" },
     { key: "vault", label: "Knowledge" },
     { key: "settings", label: "Settings" }
   ];
@@ -248,12 +251,19 @@ export default function VentureWorkspace({
       <div className={tab === "money" ? "" : "hidden"}>
         <FinancialsPanel
           ventureId={venture.id}
-          orgId={venture.org_id}
           userId={userId}
           members={members}
           ventureStage={venture.current_stage}
           initial={transactions}
-          initialSuppliers={suppliers}
+          suppliers={supplierList}
+        />
+      </div>
+      <div className={tab === "suppliers" ? "" : "hidden"}>
+        <SuppliersPanel
+          orgId={venture.org_id}
+          userId={userId}
+          suppliers={supplierList}
+          onChange={setSupplierList}
         />
       </div>
       <div className={tab === "vault" ? "" : "hidden"}>

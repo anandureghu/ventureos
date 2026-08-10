@@ -7,17 +7,12 @@ import TagInput from "@/components/TagInput";
 import Dialog from "@/components/Dialog";
 import ResultDialog from "@/components/ResultDialog";
 import SupplierPicker from "@/components/SupplierPicker";
-import {
-  EMPTY_SUPPLIER_DRAFT,
-  supplierPayloadFromDraft
-} from "@/components/SupplierFields";
 import { FUND_SOURCE_LABEL, SETTLEMENT_LABEL, REIMBURSEMENT_LABEL } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
 import type {
   LifecycleStage,
   OrgMember,
   Supplier,
-  SupplierDraft,
   Transaction,
   TxnFundSource,
   TxnReimbursementStatus,
@@ -25,26 +20,21 @@ import type {
   TxnType
 } from "@/lib/types";
 
-const TXN_SELECT =
-  "*, supplier:suppliers(*), documents(*)";
+const TXN_SELECT = "*, supplier:suppliers(*), documents(*)";
 
 export default function AddTransactionDialog({
   ventureId,
-  orgId,
   userId,
   members,
   ventureStage,
   suppliers,
-  onSuppliersChange,
   onCreated
 }: {
   ventureId: string;
-  orgId: string;
   userId: string;
   members: OrgMember[];
   ventureStage: LifecycleStage;
   suppliers: Supplier[];
-  onSuppliersChange: (next: Supplier[]) => void;
   onCreated: (txn: Transaction) => void;
 }) {
   const toast = useToast();
@@ -66,8 +56,6 @@ export default function AddTransactionDialog({
     useState<TxnReimbursementStatus>("pending");
   const [tags, setTags] = useState<string[]>([]);
   const [supplierId, setSupplierId] = useState("");
-  const [creatingSupplier, setCreatingSupplier] = useState(false);
-  const [supplierDraft, setSupplierDraft] = useState<SupplierDraft>(EMPTY_SUPPLIER_DRAFT);
   const [file, setFile] = useState<File | null>(null);
 
   const creator = members.find((m) => m.user_id === userId);
@@ -85,38 +73,13 @@ export default function AddTransactionDialog({
     setReimbursementStatus("pending");
     setTags([]);
     setSupplierId("");
-    setCreatingSupplier(false);
-    setSupplierDraft(EMPTY_SUPPLIER_DRAFT);
     setFile(null);
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  async function resolveSupplierId(
-    supabase: ReturnType<typeof createClient>
-  ): Promise<{ id: string | null; error?: string }> {
-    if (!creatingSupplier) {
-      return { id: supplierId || null };
-    }
-    const payload = supplierPayloadFromDraft(supplierDraft);
-    if (!payload) {
-      return { id: null, error: "Enter a supplier name, or choose None." };
-    }
-    const { data, error } = await supabase
-      .from("suppliers")
-      .insert({
-        org_id: orgId,
-        created_by: userId,
-        ...payload
-      })
-      .select("*")
-      .single();
-    if (error || !data) {
-      return { id: null, error: error?.message ?? "Could not create supplier." };
-    }
-    onSuppliersChange(
-      [...suppliers, data as Supplier].sort((a, b) => a.name.localeCompare(b.name))
-    );
-    return { id: (data as Supplier).id };
+  function setTxnType(next: TxnType) {
+    setType(next);
+    if (next === "revenue") setSupplierId("");
   }
 
   async function uploadDocument(
@@ -156,13 +119,6 @@ export default function AddTransactionDialog({
     setSaving(true);
     const supabase = createClient();
 
-    const supplierResult = await resolveSupplierId(supabase);
-    if (supplierResult.error) {
-      setSaving(false);
-      setResult({ variant: "error", message: supplierResult.error });
-      return;
-    }
-
     const row: Record<string, unknown> = {
       venture_id: ventureId,
       created_by: userId,
@@ -175,7 +131,7 @@ export default function AddTransactionDialog({
       reimbursement_status: fundSource === "person" ? reimbursementStatus : null,
       stage: ventureStage,
       tags,
-      supplier_id: supplierResult.id
+      supplier_id: type === "expense" ? supplierId || null : null
     };
     if (occurredOn) row.occurred_on = occurredOn;
 
@@ -249,7 +205,7 @@ export default function AddTransactionDialog({
               <button
                 key={t}
                 type="button"
-                onClick={() => setType(t)}
+                onClick={() => setTxnType(t)}
                 className={`flex-1 px-3 py-2 text-sm capitalize ${
                   type === t
                     ? t === "expense"
@@ -297,15 +253,13 @@ export default function AddTransactionDialog({
             <p className="mt-1 text-[11px] text-fg-faint">Optional — defaults to today if empty.</p>
           </div>
 
-          <SupplierPicker
-            suppliers={suppliers}
-            supplierId={supplierId}
-            onSupplierIdChange={setSupplierId}
-            creating={creatingSupplier}
-            onCreatingChange={setCreatingSupplier}
-            draft={supplierDraft}
-            onDraftChange={setSupplierDraft}
-          />
+          {type === "expense" && (
+            <SupplierPicker
+              suppliers={suppliers}
+              supplierId={supplierId}
+              onSupplierIdChange={setSupplierId}
+            />
+          )}
 
           <div>
             <label className="mb-1.5 block text-sm text-fg-muted">Document</label>
