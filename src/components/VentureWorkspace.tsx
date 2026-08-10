@@ -23,6 +23,7 @@ import type {
   LifecycleStage,
   Note,
   OrgMember,
+  Supplier,
   Task,
   Transaction,
   Venture,
@@ -63,6 +64,7 @@ export default function VentureWorkspace({
   notes,
   members,
   ventureMembers,
+  suppliers,
   canManage,
   userId
 }: {
@@ -72,6 +74,7 @@ export default function VentureWorkspace({
   notes: Note[];
   members: OrgMember[];
   ventureMembers: VentureMember[];
+  suppliers: Supplier[];
   canManage: boolean;
   userId: string;
 }) {
@@ -245,10 +248,12 @@ export default function VentureWorkspace({
       <div className={tab === "money" ? "" : "hidden"}>
         <FinancialsPanel
           ventureId={venture.id}
+          orgId={venture.org_id}
           userId={userId}
           members={members}
           ventureStage={venture.current_stage}
           initial={transactions}
+          initialSuppliers={suppliers}
         />
       </div>
       <div className={tab === "vault" ? "" : "hidden"}>

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSession, getMembers, getVentureMembers } from "@/lib/data";
 import VentureWorkspace from "@/components/VentureWorkspace";
-import type { Note, Task, Transaction, Venture } from "@/lib/types";
+import type { Note, Supplier, Task, Transaction, Venture } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -20,30 +20,42 @@ export default async function VenturePage({
     .from("ventures")
     .select("*")
     .eq("id", id)
+    .eq("org_id", org.id)
     .single();
 
   if (!venture) notFound();
 
-  const [{ data: tasks }, { data: txns }, { data: notes }, members, ventureMembers] =
-    await Promise.all([
-      supabase
-        .from("tasks")
-        .select("*")
-        .eq("venture_id", id)
-        .order("position", { ascending: true }),
-      supabase
-        .from("transactions")
-        .select("*")
-        .eq("venture_id", id)
-        .order("occurred_on", { ascending: false }),
-      supabase
-        .from("notes")
-        .select("*")
-        .eq("venture_id", id)
-        .order("created_at", { ascending: false }),
-      getMembers(org.id),
-      getVentureMembers(id)
-    ]);
+  const [
+    { data: tasks },
+    { data: txns },
+    { data: notes },
+    { data: suppliers },
+    members,
+    ventureMembers
+  ] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("*")
+      .eq("venture_id", id)
+      .order("position", { ascending: true }),
+    supabase
+      .from("transactions")
+      .select("*, supplier:suppliers(*), documents(*)")
+      .eq("venture_id", id)
+      .order("occurred_on", { ascending: false }),
+    supabase
+      .from("notes")
+      .select("*")
+      .eq("venture_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("suppliers")
+      .select("*")
+      .eq("org_id", org.id)
+      .order("name", { ascending: true }),
+    getMembers(org.id),
+    getVentureMembers(id)
+  ]);
 
   const canManage = role === "owner" || role === "admin";
 
@@ -62,6 +74,7 @@ export default async function VenturePage({
         notes={(notes ?? []) as Note[]}
         members={members}
         ventureMembers={ventureMembers}
+        suppliers={(suppliers ?? []) as Supplier[]}
         canManage={canManage}
         userId={userId}
       />

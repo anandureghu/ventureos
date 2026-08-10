@@ -13,22 +13,27 @@ import {
   SETTLEMENT_LABEL,
   REIMBURSEMENT_LABEL
 } from "@/lib/constants";
-import type { LifecycleStage, OrgMember, Transaction } from "@/lib/types";
+import type { LifecycleStage, OrgMember, Supplier, Transaction } from "@/lib/types";
 
 export default function FinancialsPanel({
   ventureId,
+  orgId,
   userId,
   members,
   ventureStage,
-  initial
+  initial,
+  initialSuppliers
 }: {
   ventureId: string;
+  orgId: string;
   userId: string;
   members: OrgMember[];
   ventureStage: LifecycleStage;
   initial: Transaction[];
+  initialSuppliers: Supplier[];
 }) {
   const [txns, setTxns] = useState<Transaction[]>(initial);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "">("");
   const [tagFilter, setTagFilter] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
@@ -70,6 +75,20 @@ export default function FinancialsPanel({
 
   function addTxn(txn: Transaction) {
     setTxns((t) => [txn, ...t]);
+  }
+
+  async function openDocument(storagePath: string, name: string) {
+    const { data, error } = await supabase.storage
+      .from("vault")
+      .createSignedUrl(storagePath, 60 * 10);
+    if (error || !data?.signedUrl) {
+      setResult({
+        variant: "error",
+        message: `Could not open ${name}: ${error?.message ?? "No URL"}`
+      });
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   async function confirmDelete() {
@@ -127,9 +146,12 @@ export default function FinancialsPanel({
         />
         <AddTransactionDialog
           ventureId={ventureId}
+          orgId={orgId}
           userId={userId}
           members={members}
           ventureStage={ventureStage}
+          suppliers={suppliers}
+          onSuppliersChange={setSuppliers}
           onCreated={addTxn}
         />
       </div>
@@ -144,6 +166,8 @@ export default function FinancialsPanel({
         )}
         {visibleTxns.map((t) => {
           const assignee = nameFor(t.assigned_to);
+          const creator = nameFor(t.created_by);
+          const docs = t.documents ?? [];
           return (
             <div
               key={t.id}
@@ -158,7 +182,12 @@ export default function FinancialsPanel({
                   />
                   <div>
                     <p className="text-sm">{t.purpose ?? t.description ?? t.type}</p>
-                    <p className="text-[11px] text-fg-faint">{formatDate(t.occurred_on)}</p>
+                    <p className="text-[11px] text-fg-faint">
+                      {formatDate(t.occurred_on)}
+                      {t.supplier?.name ? ` · ${t.supplier.name}` : ""}
+                      {creator ? ` · by ${creator}` : ""}
+                      {t.created_at ? ` · recorded ${formatDate(t.created_at)}` : ""}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -182,6 +211,9 @@ export default function FinancialsPanel({
                 {t.stage && <span className="chip">{STAGE_LABEL[t.stage]}</span>}
                 <span className="chip">{FUND_SOURCE_LABEL[t.fund_source]}</span>
                 {assignee && <span className="chip">{assignee}</span>}
+                {t.supplier?.name && (
+                  <span className="chip text-fg-muted">{t.supplier.name}</span>
+                )}
                 <span
                   className={`chip ${
                     t.settlement_status === "completed"
@@ -206,6 +238,16 @@ export default function FinancialsPanel({
                   <span key={tag} className="chip text-fg-faint">
                     {tag}
                   </span>
+                ))}
+                {docs.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    className="chip text-fg-muted hover:text-fg"
+                    onClick={() => openDocument(d.storage_path, d.name)}
+                  >
+                    Doc: {d.name}
+                  </button>
                 ))}
               </div>
             </div>
