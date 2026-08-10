@@ -1,15 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ToastProvider";
 import TagInput from "@/components/TagInput";
 import Dialog from "@/components/Dialog";
 import ResultDialog from "@/components/ResultDialog";
+import SupplierPicker from "@/components/SupplierPicker";
+import {
+  EMPTY_SUPPLIER_DRAFT,
+  supplierPayloadFromDraft
+} from "@/components/SupplierFields";
 import { FUND_SOURCE_LABEL, SETTLEMENT_LABEL, REIMBURSEMENT_LABEL } from "@/lib/constants";
+import { formatDate } from "@/lib/format";
 import type {
   LifecycleStage,
   OrgMember,
+  Supplier,
+  SupplierDraft,
   Transaction,
   TxnFundSource,
   TxnReimbursementStatus,
@@ -17,20 +25,30 @@ import type {
   TxnType
 } from "@/lib/types";
 
+const TXN_SELECT =
+  "*, supplier:suppliers(*), documents(*)";
+
 export default function AddTransactionDialog({
   ventureId,
+  orgId,
   userId,
   members,
   ventureStage,
+  suppliers,
+  onSuppliersChange,
   onCreated
 }: {
   ventureId: string;
+  orgId: string;
   userId: string;
   members: OrgMember[];
   ventureStage: LifecycleStage;
+  suppliers: Supplier[];
+  onSuppliersChange: (next: Supplier[]) => void;
   onCreated: (txn: Transaction) => void;
 }) {
   const toast = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
     null
@@ -40,22 +58,89 @@ export default function AddTransactionDialog({
   const [type, setType] = useState<TxnType>("expense");
   const [amount, setAmount] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [occurredOn, setOccurredOn] = useState("");
   const [fundSource, setFundSource] = useState<TxnFundSource>("company");
   const [assignedTo, setAssignedTo] = useState("");
   const [settlementStatus, setSettlementStatus] = useState<TxnSettlementStatus>("pending");
   const [reimbursementStatus, setReimbursementStatus] =
     useState<TxnReimbursementStatus>("pending");
   const [tags, setTags] = useState<string[]>([]);
+  const [supplierId, setSupplierId] = useState("");
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const [supplierDraft, setSupplierDraft] = useState<SupplierDraft>(EMPTY_SUPPLIER_DRAFT);
+  const [file, setFile] = useState<File | null>(null);
+
+  const creator = members.find((m) => m.user_id === userId);
+  const creatorName =
+    creator?.profiles?.full_name ?? creator?.profiles?.email ?? "You";
 
   function reset() {
     setType("expense");
     setAmount("");
     setPurpose("");
+    setOccurredOn("");
     setFundSource("company");
     setAssignedTo("");
     setSettlementStatus("pending");
     setReimbursementStatus("pending");
     setTags([]);
+    setSupplierId("");
+    setCreatingSupplier(false);
+    setSupplierDraft(EMPTY_SUPPLIER_DRAFT);
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function resolveSupplierId(
+    supabase: ReturnType<typeof createClient>
+  ): Promise<{ id: string | null; error?: string }> {
+    if (!creatingSupplier) {
+      return { id: supplierId || null };
+    }
+    const payload = supplierPayloadFromDraft(supplierDraft);
+    if (!payload) {
+      return { id: null, error: "Enter a supplier name, or choose None." };
+    }
+    const { data, error } = await supabase
+      .from("suppliers")
+      .insert({
+        org_id: orgId,
+        created_by: userId,
+        ...payload
+      })
+      .select("*")
+      .single();
+    if (error || !data) {
+      return { id: null, error: error?.message ?? "Could not create supplier." };
+    }
+    onSuppliersChange(
+      [...suppliers, data as Supplier].sort((a, b) => a.name.localeCompare(b.name))
+    );
+    return { id: (data as Supplier).id };
+  }
+
+  async function uploadDocument(
+    supabase: ReturnType<typeof createClient>,
+    transactionId: string,
+    attachment: File
+  ): Promise<string | null> {
+    const safeName = attachment.name.replace(/[^\w.\-()+ ]+/g, "_");
+    const storagePath = `${ventureId}/${transactionId}/${Date.now()}-${safeName}`;
+    const { error: upErr } = await supabase.storage
+      .from("vault")
+      .upload(storagePath, attachment, { upsert: false });
+    if (upErr) return upErr.message;
+
+    const { error: docErr } = await supabase.from("documents").insert({
+      venture_id: ventureId,
+      transaction_id: transactionId,
+      name: attachment.name,
+      storage_path: storagePath,
+      mime_type: attachment.type || null,
+      size_bytes: attachment.size,
+      uploaded_by: userId
+    });
+    return docErr?.message ?? null;
   }
 
   async function create() {
@@ -70,30 +155,69 @@ export default function AddTransactionDialog({
     }
     setSaving(true);
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert({
-        venture_id: ventureId,
-        created_by: userId,
-        type,
-        amount: amt,
-        purpose: purpose.trim(),
-        fund_source: fundSource,
-        assigned_to: assignedTo || null,
-        settlement_status: settlementStatus,
-        reimbursement_status: fundSource === "person" ? reimbursementStatus : null,
-        stage: ventureStage,
-        tags
-      })
-      .select("*")
-      .single();
 
-    setSaving(false);
-    if (error) {
-      setResult({ variant: "error", message: `Could not save: ${error.message}` });
+    const supplierResult = await resolveSupplierId(supabase);
+    if (supplierResult.error) {
+      setSaving(false);
+      setResult({ variant: "error", message: supplierResult.error });
       return;
     }
-    if (data) onCreated(data as Transaction);
+
+    const row: Record<string, unknown> = {
+      venture_id: ventureId,
+      created_by: userId,
+      type,
+      amount: amt,
+      purpose: purpose.trim(),
+      fund_source: fundSource,
+      assigned_to: assignedTo || null,
+      settlement_status: settlementStatus,
+      reimbursement_status: fundSource === "person" ? reimbursementStatus : null,
+      stage: ventureStage,
+      tags,
+      supplier_id: supplierResult.id
+    };
+    if (occurredOn) row.occurred_on = occurredOn;
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert(row)
+      .select(TXN_SELECT)
+      .single();
+
+    if (error || !data) {
+      setSaving(false);
+      setResult({
+        variant: "error",
+        message: `Could not save: ${error?.message ?? "Unknown error"}`
+      });
+      return;
+    }
+
+    let txn = data as Transaction;
+    if (file) {
+      const docErr = await uploadDocument(supabase, txn.id, file);
+      if (docErr) {
+        setSaving(false);
+        onCreated(txn);
+        reset();
+        setOpen(false);
+        setResult({
+          variant: "error",
+          message: `Transaction saved, but document upload failed: ${docErr}`
+        });
+        return;
+      }
+      const { data: refreshed } = await supabase
+        .from("transactions")
+        .select(TXN_SELECT)
+        .eq("id", txn.id)
+        .single();
+      if (refreshed) txn = refreshed as Transaction;
+    }
+
+    setSaving(false);
+    onCreated(txn);
     reset();
     setOpen(false);
     setResult({ variant: "success", message: "Transaction recorded." });
@@ -105,9 +229,19 @@ export default function AddTransactionDialog({
         + Add transaction
       </button>
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog open={open} onClose={() => setOpen(false)} className="max-h-[90vh] overflow-y-auto">
         <p className="eyebrow mb-1">New transaction</p>
         <h2 className="font-display text-xl font-semibold">Record money in or out</h2>
+
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-faint">
+          <span>
+            Created by <span className="text-fg-muted">{creatorName}</span>
+          </span>
+          <span>
+            Created at{" "}
+            <span className="text-fg-muted">set on save · {formatDate(new Date().toISOString())}</span>
+          </span>
+        </div>
 
         <div className="mt-5 space-y-4">
           <div className="flex overflow-hidden rounded-lg border border-ink-500">
@@ -150,6 +284,40 @@ export default function AddTransactionDialog({
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
             />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Date</label>
+            <input
+              className="field"
+              type="date"
+              value={occurredOn}
+              onChange={(e) => setOccurredOn(e.target.value)}
+            />
+            <p className="mt-1 text-[11px] text-fg-faint">Optional — defaults to today if empty.</p>
+          </div>
+
+          <SupplierPicker
+            suppliers={suppliers}
+            supplierId={supplierId}
+            onSupplierIdChange={setSupplierId}
+            creating={creatingSupplier}
+            onCreatingChange={setCreatingSupplier}
+            draft={supplierDraft}
+            onDraftChange={setSupplierDraft}
+          />
+
+          <div>
+            <label className="mb-1.5 block text-sm text-fg-muted">Document</label>
+            <input
+              ref={fileRef}
+              className="field file:mr-3 file:rounded file:border-0 file:bg-ink-600 file:px-3 file:py-1.5 file:text-sm file:text-fg"
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            <p className="mt-1 text-[11px] text-fg-faint">
+              Optional receipt or invoice — uploaded to the venture vault.
+            </p>
           </div>
 
           <div>
