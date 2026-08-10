@@ -17,23 +17,20 @@ import type { LifecycleStage, OrgMember, Supplier, Transaction } from "@/lib/typ
 
 export default function FinancialsPanel({
   ventureId,
-  orgId,
   userId,
   members,
   ventureStage,
   initial,
-  initialSuppliers
+  suppliers
 }: {
   ventureId: string;
-  orgId: string;
   userId: string;
   members: OrgMember[];
   ventureStage: LifecycleStage;
   initial: Transaction[];
-  initialSuppliers: Supplier[];
+  suppliers: Supplier[];
 }) {
   const [txns, setTxns] = useState<Transaction[]>(initial);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "">("");
   const [tagFilter, setTagFilter] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
@@ -146,12 +143,10 @@ export default function FinancialsPanel({
         />
         <AddTransactionDialog
           ventureId={ventureId}
-          orgId={orgId}
           userId={userId}
           members={members}
           ventureStage={ventureStage}
           suppliers={suppliers}
-          onSuppliersChange={setSuppliers}
           onCreated={addTxn}
         />
       </div>
@@ -184,7 +179,7 @@ export default function FinancialsPanel({
                     <p className="text-sm">{t.purpose ?? t.description ?? t.type}</p>
                     <p className="text-[11px] text-fg-faint">
                       {formatDate(t.occurred_on)}
-                      {t.supplier?.name ? ` · ${t.supplier.name}` : ""}
+                      {t.type === "expense" && t.supplier?.name ? ` · ${t.supplier.name}` : ""}
                       {creator ? ` · by ${creator}` : ""}
                       {t.created_at ? ` · recorded ${formatDate(t.created_at)}` : ""}
                     </p>
@@ -211,7 +206,7 @@ export default function FinancialsPanel({
                 {t.stage && <span className="chip">{STAGE_LABEL[t.stage]}</span>}
                 <span className="chip">{FUND_SOURCE_LABEL[t.fund_source]}</span>
                 {assignee && <span className="chip">{assignee}</span>}
-                {t.supplier?.name && (
+                {t.type === "expense" && t.supplier?.name && (
                   <span className="chip text-fg-muted">{t.supplier.name}</span>
                 )}
                 <span
