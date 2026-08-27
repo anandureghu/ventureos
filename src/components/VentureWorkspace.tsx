@@ -7,6 +7,7 @@ import KanbanBoard from "@/components/KanbanBoard";
 import FinancialsPanel from "@/components/FinancialsPanel";
 import SuppliersPanel from "@/components/SuppliersPanel";
 import KnowledgePanel from "@/components/KnowledgePanel";
+import ResourcesPanel from "@/components/ResourcesPanel";
 import VentureSettings from "@/components/VentureSettings";
 import StageChangeDialog, {
   createStageChangeContent,
@@ -29,10 +30,18 @@ import type {
   Transaction,
   Venture,
   VentureMember,
+  VentureResource,
   VentureState
 } from "@/lib/types";
 
-type Tab = "overview" | "pipeline" | "money" | "suppliers" | "vault" | "settings";
+type Tab =
+  | "overview"
+  | "pipeline"
+  | "money"
+  | "suppliers"
+  | "vault"
+  | "resources"
+  | "settings";
 
 // Fields editable via the buffered draft — everything else (name/description,
 // managed by VentureSettings) saves immediately through its own button.
@@ -63,6 +72,7 @@ export default function VentureWorkspace({
   tasks,
   transactions,
   notes,
+  resources,
   members,
   ventureMembers,
   suppliers,
@@ -73,6 +83,7 @@ export default function VentureWorkspace({
   tasks: Task[];
   transactions: Transaction[];
   notes: Note[];
+  resources: VentureResource[];
   members: OrgMember[];
   ventureMembers: VentureMember[];
   suppliers: Supplier[];
@@ -145,6 +156,7 @@ export default function VentureWorkspace({
     { key: "money", label: "Financials" },
     { key: "suppliers", label: "Suppliers" },
     { key: "vault", label: "Knowledge" },
+    { key: "resources", label: "Resources" },
     { key: "settings", label: "Settings" }
   ];
 
@@ -272,6 +284,13 @@ export default function VentureWorkspace({
           userId={userId}
           ventureStage={venture.current_stage}
           initial={notes}
+        />
+      </div>
+      <div className={tab === "resources" ? "" : "hidden"}>
+        <ResourcesPanel
+          ventureId={venture.id}
+          userId={userId}
+          initial={resources}
         />
       </div>
       <div className={tab === "settings" ? "" : "hidden"}>

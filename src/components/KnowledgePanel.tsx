@@ -8,6 +8,7 @@ import FilterBar from "@/components/FilterBar";
 import Dialog from "@/components/Dialog";
 import ResultDialog from "@/components/ResultDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import CopyButton from "@/components/CopyButton";
 import { formatDate } from "@/lib/format";
 import { STAGE_LABEL } from "@/lib/constants";
 import type { LifecycleStage, Note, NoteType } from "@/lib/types";
@@ -20,6 +21,13 @@ const NOTE_TYPES: { key: NoteType; label: string }[] = [
   { key: "meeting", label: "Meeting" }
 ];
 
+function sortNotes(list: Note[]): Note[] {
+  return [...list].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return b.created_at.localeCompare(a.created_at);
+  });
+}
+
 export default function KnowledgePanel({
   ventureId,
   userId,
@@ -31,7 +39,9 @@ export default function KnowledgePanel({
   ventureStage: LifecycleStage;
   initial: Note[];
 }) {
-  const [notes, setNotes] = useState<Note[]>(initial);
+  const [notes, setNotes] = useState<Note[]>(() =>
+    sortNotes(initial.map((n) => ({ ...n, pinned: n.pinned ?? false })))
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -56,10 +66,12 @@ export default function KnowledgePanel({
   }, [notes]);
 
   const visibleNotes = useMemo(() => {
-    return notes.filter(
-      (n) =>
-        (!stageFilter || n.stage === stageFilter) &&
-        (!tagFilter || n.tags.includes(tagFilter))
+    return sortNotes(
+      notes.filter(
+        (n) =>
+          (!stageFilter || n.stage === stageFilter) &&
+          (!tagFilter || n.tags.includes(tagFilter))
+      )
     );
   }, [notes, stageFilter, tagFilter]);
 
@@ -79,7 +91,8 @@ export default function KnowledgePanel({
         url: url.trim() || null,
         type,
         stage: ventureStage,
-        tags: draftTags
+        tags: draftTags,
+        pinned: false
       })
       .select("*")
       .single();
@@ -88,7 +101,7 @@ export default function KnowledgePanel({
       setResult({ variant: "error", message: `Could not save note: ${error.message}` });
       return;
     }
-    if (data) setNotes((n) => [data as Note, ...n]);
+    if (data) setNotes((n) => sortNotes([data as Note, ...n]));
     setTitle("");
     setContent("");
     setUrl("");
@@ -106,7 +119,7 @@ export default function KnowledgePanel({
     setDeleting(false);
     setPendingDelete(null);
     if (error) {
-      setNotes((n) => [note, ...n]);
+      setNotes((n) => sortNotes([note, ...n]));
       setResult({ variant: "error", message: `Could not delete note: ${error.message}` });
       return;
     }
@@ -121,6 +134,25 @@ export default function KnowledgePanel({
       setNotes((n) => n.map((x) => (x.id === note.id ? { ...x, tags: previous } : x)));
       toast.error(`Could not update tags: ${error.message}`);
     }
+  }
+
+  async function togglePin(note: Note) {
+    const next = !note.pinned;
+    setNotes((n) =>
+      sortNotes(n.map((x) => (x.id === note.id ? { ...x, pinned: next } : x)))
+    );
+    const { error } = await supabase
+      .from("notes")
+      .update({ pinned: next })
+      .eq("id", note.id);
+    if (error) {
+      setNotes((n) =>
+        sortNotes(n.map((x) => (x.id === note.id ? { ...x, pinned: note.pinned } : x)))
+      );
+      toast.error(`Could not ${next ? "pin" : "unpin"} note: ${error.message}`);
+      return;
+    }
+    toast.success(next ? "Note pinned." : "Note unpinned.");
   }
 
   return (
@@ -153,6 +185,7 @@ export default function KnowledgePanel({
             note={n}
             onRemove={setPendingDelete}
             onRetag={retag}
+            onTogglePin={togglePin}
           />
         ))}
       </div>
@@ -233,39 +266,70 @@ function NoteCard({
   ventureId,
   note,
   onRemove,
-  onRetag
+  onRetag,
+  onTogglePin
 }: {
   ventureId: string;
   note: Note;
   onRemove: (note: Note) => void;
   onRetag: (n: Note, tags: string[]) => void;
+  onTogglePin: (n: Note) => void;
 }) {
   const [tagging, setTagging] = useState(false);
 
   return (
-    <div className="panel group p-4">
+    <div className={`panel group p-4 ${note.pinned ? "border-signal-amber/40" : ""}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="chip">{note.type}</p>
-        <button
-          className="text-xs text-fg-faint opacity-0 transition-opacity hover:text-signal-red group-hover:opacity-100"
-          onClick={() => onRemove(note)}
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1.5">
+          <p className="chip">{note.type}</p>
+          {note.pinned && <span className="chip text-signal-amber">Pinned</span>}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            title={note.pinned ? "Unpin note" : "Pin note"}
+            aria-label={note.pinned ? "Unpin note" : "Pin note"}
+            className={`rounded-md p-1 transition-colors ${
+              note.pinned
+                ? "text-signal-amber"
+                : "text-fg-faint opacity-0 hover:text-signal-amber group-hover:opacity-100"
+            }`}
+            onClick={() => onTogglePin(note)}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+              <path
+                d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.4l1.1-6.5L2.6 9.3l6.5-.9L12 2.5z"
+                fill={note.pinned ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            className="text-xs text-fg-faint opacity-0 transition-opacity hover:text-signal-red group-hover:opacity-100"
+            onClick={() => onRemove(note)}
+          >
+            ✕
+          </button>
+        </div>
       </div>
       <p className="mt-2 font-display text-sm font-semibold">{note.title}</p>
       {note.content && (
         <p className="mt-1 whitespace-pre-wrap text-sm text-fg-muted">{note.content}</p>
       )}
       {note.url && (
-        <a
-          href={note.url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-block truncate text-xs text-signal-blue hover:underline"
-        >
-          {note.url}
-        </a>
+        <div className="mt-2 flex items-center gap-1">
+          <a
+            href={note.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block min-w-0 truncate text-xs text-signal-blue hover:underline"
+          >
+            {note.url}
+          </a>
+          <CopyButton value={note.url} label="URL" />
+        </div>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {note.stage && <span className="chip">{STAGE_LABEL[note.stage]}</span>}

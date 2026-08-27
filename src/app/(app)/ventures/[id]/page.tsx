@@ -3,7 +3,14 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSession, getMembers, getVentureMembers } from "@/lib/data";
 import VentureWorkspace from "@/components/VentureWorkspace";
-import type { Note, Supplier, Task, Transaction, Venture } from "@/lib/types";
+import type {
+  Note,
+  Supplier,
+  Task,
+  Transaction,
+  Venture,
+  VentureResource
+} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +36,7 @@ export default async function VenturePage({
     { data: tasks },
     { data: txns },
     { data: notes },
+    { data: resources },
     { data: suppliers },
     members,
     ventureMembers
@@ -47,7 +55,13 @@ export default async function VenturePage({
       .from("notes")
       .select("*")
       .eq("venture_id", id)
+      .order("pinned", { ascending: false })
       .order("created_at", { ascending: false }),
+    supabase
+      .from("resources")
+      .select("*")
+      .eq("venture_id", id)
+      .order("position", { ascending: true }),
     supabase
       .from("suppliers")
       .select("*")
@@ -72,6 +86,7 @@ export default async function VenturePage({
         tasks={(tasks ?? []) as Task[]}
         transactions={(txns ?? []) as Transaction[]}
         notes={(notes ?? []) as Note[]}
+        resources={(resources ?? []) as VentureResource[]}
         members={members}
         ventureMembers={ventureMembers}
         suppliers={(suppliers ?? []) as Supplier[]}

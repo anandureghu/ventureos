@@ -75,6 +75,14 @@ export interface Venture {
   logo_url: string | null;
   next_action: string | null;
   owner_id: string | null;
+  mission: string | null;
+  vision: string | null;
+  tagline: string | null;
+  problem: string | null;
+  solution: string | null;
+  target_audience: string | null;
+  industry: string | null;
+  website: string | null;
   score_profit: number;
   score_demand: number;
   score_interest: number;
@@ -82,6 +90,18 @@ export interface Venture {
   score_low_time: number;
   score_low_risk: number;
   est_launch_date: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VentureResource {
+  id: string;
+  venture_id: string;
+  title: string;
+  url: string;
+  description: string | null;
+  position: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -181,6 +201,7 @@ export interface Note {
   content: string | null;
   type: NoteType;
   url: string | null;
+  pinned: boolean;
   created_at: string;
   stage: LifecycleStage | null;
   tags: string[];

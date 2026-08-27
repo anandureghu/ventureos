@@ -11,6 +11,7 @@ import SupplierFields, {
   supplierPayloadFromDraft
 } from "@/components/SupplierFields";
 import { formatDate } from "@/lib/format";
+import CopyButton from "@/components/CopyButton";
 import type { Supplier, SupplierDraft } from "@/lib/types";
 
 function draftFromSupplier(s: Supplier): SupplierDraft {
@@ -196,7 +197,6 @@ export default function SuppliersPanel({
         )}
         {visible.map((s) => {
           const address = formatAddress(s);
-          const contactBits = [s.contact_name, s.email, s.phone].filter(Boolean);
           return (
             <div
               key={s.id}
@@ -205,11 +205,30 @@ export default function SuppliersPanel({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-fg">{s.name}</p>
-                  {contactBits.length > 0 && (
-                    <p className="mt-0.5 text-[11px] text-fg-muted">{contactBits.join(" · ")}</p>
+                  {s.contact_name && (
+                    <p className="mt-0.5 text-[11px] text-fg-muted">{s.contact_name}</p>
+                  )}
+                  {(s.email || s.phone) && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                      {s.email && (
+                        <span className="inline-flex items-center gap-0.5 text-[11px] text-fg-muted">
+                          {s.email}
+                          <CopyButton value={s.email} label="Email" />
+                        </span>
+                      )}
+                      {s.phone && (
+                        <span className="inline-flex items-center gap-0.5 text-[11px] text-fg-muted">
+                          {s.phone}
+                          <CopyButton value={s.phone} label="Phone" />
+                        </span>
+                      )}
+                    </div>
                   )}
                   {address && (
-                    <p className="mt-0.5 text-[11px] text-fg-faint">{address}</p>
+                    <div className="mt-0.5 flex items-center gap-0.5">
+                      <p className="text-[11px] text-fg-faint">{address}</p>
+                      <CopyButton value={address} label="Address" />
+                    </div>
                   )}
                   <p className="mt-1 text-[11px] text-fg-faint">
                     Added {formatDate(s.created_at)}
