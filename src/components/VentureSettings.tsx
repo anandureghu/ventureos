@@ -4,13 +4,56 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { initials } from "@/lib/format";
+import { CATEGORY_LABEL } from "@/lib/constants";
 import { useToast } from "@/components/ToastProvider";
 import Dialog from "@/components/Dialog";
 import ResultDialog from "@/components/ResultDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import InviteVentureGuest from "@/components/InviteVentureGuest";
 import LogoUpload from "@/components/LogoUpload";
+import CopyButton from "@/components/CopyButton";
 import type { OrgMember, Venture, VentureMember } from "@/lib/types";
+
+const EMPTY = "—";
+
+type ProfileFieldKey =
+  | "description"
+  | "mission"
+  | "vision"
+  | "tagline"
+  | "problem"
+  | "solution"
+  | "target_audience"
+  | "industry"
+  | "website";
+
+const PROFILE_FIELDS: {
+  key: ProfileFieldKey;
+  label: string;
+  multiline?: boolean;
+  copyable?: boolean;
+  link?: boolean;
+}[] = [
+  { key: "tagline", label: "Tagline", copyable: true },
+  { key: "description", label: "Description", multiline: true, copyable: true },
+  { key: "mission", label: "Mission", multiline: true, copyable: true },
+  { key: "vision", label: "Vision", multiline: true, copyable: true },
+  { key: "problem", label: "Problem", multiline: true, copyable: true },
+  { key: "solution", label: "Solution", multiline: true, copyable: true },
+  { key: "target_audience", label: "Target audience", multiline: true, copyable: true },
+  { key: "industry", label: "Industry", copyable: true },
+  { key: "website", label: "Website", copyable: true, link: true }
+];
+
+function displayValue(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : EMPTY;
+}
+
+function ensureHref(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `https://${url}`;
+}
 
 export default function VentureSettings({
   venture,
@@ -29,7 +72,9 @@ export default function VentureSettings({
   const toast = useToast();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [name, setName] = useState(venture.name);
-  const [description, setDescription] = useState(venture.description ?? "");
+  const [fields, setFields] = useState<Record<ProfileFieldKey, string>>(() =>
+    profileDraftFromVenture(venture)
+  );
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ variant: "success" | "error"; message: string } | null>(
@@ -42,7 +87,7 @@ export default function VentureSettings({
 
   function openDetails() {
     setName(venture.name);
-    setDescription(venture.description ?? "");
+    setFields(profileDraftFromVenture(venture));
     setDetailsOpen(true);
   }
 
@@ -53,10 +98,11 @@ export default function VentureSettings({
       return;
     }
     setSaving(true);
-    const outcome = await onSave({
-      name: trimmedName,
-      description: description.trim() || null
-    });
+    const payload: Partial<Venture> = { name: trimmedName };
+    for (const { key } of PROFILE_FIELDS) {
+      payload[key] = fields[key].trim() || null;
+    }
+    const outcome = await onSave(payload);
     setSaving(false);
     if (!outcome.ok) {
       setResult({ variant: "error", message: outcome.message });
@@ -111,13 +157,53 @@ export default function VentureSettings({
             onUploaded={handleLogoUploaded}
             fallbackInitial={venture.name.charAt(0).toUpperCase()}
           />
-          <div>
-            <p className="font-display text-base font-semibold">{venture.name}</p>
-            {venture.description && (
-              <p className="mt-1 text-sm text-fg-muted">{venture.description}</p>
-            )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="font-display text-base font-semibold">{venture.name}</p>
+              <CopyButton value={venture.name} label="Name" />
+            </div>
+            <p className="mt-0.5 text-xs text-fg-faint">{CATEGORY_LABEL[venture.category]}</p>
           </div>
         </div>
+
+        <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+          {PROFILE_FIELDS.map((field) => {
+            const raw = venture[field.key];
+            const shown = displayValue(raw);
+            const hasValue = shown !== EMPTY;
+            return (
+              <div
+                key={field.key}
+                className={field.multiline ? "sm:col-span-2" : undefined}
+              >
+                <dt className="text-xs text-fg-muted">{field.label}</dt>
+                <dd className="mt-1 flex items-start gap-1.5">
+                  {field.link && hasValue ? (
+                    <a
+                      href={ensureHref(raw!.trim())}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="min-w-0 flex-1 break-all text-sm text-signal-blue hover:underline"
+                    >
+                      {shown}
+                    </a>
+                  ) : (
+                    <p
+                      className={`min-w-0 flex-1 text-sm whitespace-pre-wrap ${
+                        hasValue ? "text-fg" : "text-fg-faint"
+                      }`}
+                    >
+                      {shown}
+                    </p>
+                  )}
+                  {field.copyable && hasValue && (
+                    <CopyButton value={raw!.trim()} label={field.label} />
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
       </div>
 
       <div className="panel p-4">
@@ -156,7 +242,12 @@ export default function VentureSettings({
                 <p className="truncate text-sm">
                   {m.profiles?.full_name ?? m.profiles?.email ?? "Guest"}
                 </p>
-                <p className="truncate text-xs text-fg-faint">{m.profiles?.email}</p>
+                <div className="flex items-center gap-1">
+                  <p className="truncate text-xs text-fg-faint">{m.profiles?.email}</p>
+                  {m.profiles?.email && (
+                    <CopyButton value={m.profiles.email} label="Email" />
+                  )}
+                </div>
               </div>
               <span className="chip text-fg-faint">Collaborator</span>
               {canManage && (
@@ -183,19 +274,44 @@ export default function VentureSettings({
         <p className="eyebrow mb-1">Venture details</p>
         <h2 className="font-display text-xl font-semibold">Edit venture details</h2>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
           <div>
             <label className="mb-1.5 block text-xs text-fg-muted">Name</label>
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs text-fg-muted">Description</label>
-            <textarea
-              className="field min-h-[80px] resize-y"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+            <input
+              className="field"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
             />
           </div>
+          {PROFILE_FIELDS.map((field) => (
+            <div key={field.key}>
+              <label className="mb-1.5 block text-xs text-fg-muted">{field.label}</label>
+              {field.multiline ? (
+                <textarea
+                  className="field min-h-[72px] resize-y"
+                  value={fields[field.key]}
+                  onChange={(e) =>
+                    setFields((prev) => ({ ...prev, [field.key]: e.target.value }))
+                  }
+                  placeholder={`Optional ${field.label.toLowerCase()}`}
+                />
+              ) : (
+                <input
+                  className="field"
+                  value={fields[field.key]}
+                  onChange={(e) =>
+                    setFields((prev) => ({ ...prev, [field.key]: e.target.value }))
+                  }
+                  placeholder={
+                    field.key === "website"
+                      ? "https://…"
+                      : `Optional ${field.label.toLowerCase()}`
+                  }
+                />
+              )}
+            </div>
+          ))}
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
@@ -227,4 +343,18 @@ export default function VentureSettings({
       />
     </div>
   );
+}
+
+function profileDraftFromVenture(venture: Venture): Record<ProfileFieldKey, string> {
+  return {
+    description: venture.description ?? "",
+    mission: venture.mission ?? "",
+    vision: venture.vision ?? "",
+    tagline: venture.tagline ?? "",
+    problem: venture.problem ?? "",
+    solution: venture.solution ?? "",
+    target_audience: venture.target_audience ?? "",
+    industry: venture.industry ?? "",
+    website: venture.website ?? ""
+  };
 }
